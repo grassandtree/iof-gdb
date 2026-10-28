@@ -34,6 +34,12 @@ def test_ns(neo4j_driver):
     """A unique IRI namespace for test resources; everything under it is deleted afterwards."""
     ns = f"https://test.example/iof-gdb-it/{uuid.uuid4().hex}/"
     yield ns
+    # test resources plus the blank nodes (restrictions, lists) hanging off them
     neo4j_driver.execute_query(
-        "MATCH (r:Resource) WHERE r.uri STARTS WITH $ns DETACH DELETE r", {"ns": ns}
+        "MATCH (r:Resource) WHERE r.uri STARTS WITH $ns "
+        "OPTIONAL MATCH p = (r)-[*1..20]->(b:Resource) "
+        "WHERE all(x IN nodes(p)[1..] WHERE NOT x.uri CONTAINS ':') "
+        "WITH collect(DISTINCT r) + collect(DISTINCT b) AS nodes "
+        "UNWIND nodes AS n DETACH DELETE n",
+        {"ns": ns},
     )

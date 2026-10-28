@@ -121,25 +121,8 @@ def describe_class(driver: Driver, iri: str) -> dict[str, Any] | None:
         res = read(driver, query, iri=iri)
         return sorted(_named([r["item"] for r in res]), key=lambda x: x["label"] or x["iri"])
 
-    # property domain/range given directly or as a member of an owl:unionOf list
-    member = "(n)<-[:rdf__first]-()<-[:rdf__rest*0..]-()<-[:owl__unionOf]-()"
-    restrictions = read(
-        driver,
-        "MATCH (n:Resource {uri: $iri})-[:rdfs__subClassOf|owl__equivalentClass]->"
-        "(r:owl__Restriction)-[:owl__onProperty]->(p) "
-        "OPTIONAL MATCH (r)-[q:owl__someValuesFrom|owl__allValuesFrom|owl__hasValue"
-        "|owl__onClass]->(v) "
-        "RETURN p.uri AS property, coalesce(p.rdfs__label, p.skos__prefLabel) AS property_label, "
-        "replace(type(q), 'owl__', '') AS restriction, v.uri AS value, "
-        "coalesce(v.rdfs__label, v.skos__prefLabel) AS value_label, "
-        "coalesce(r.owl__cardinality, r.owl__minCardinality, r.owl__maxCardinality, "
-        "r.owl__qualifiedCardinality, r.owl__minQualifiedCardinality, "
-        "r.owl__maxQualifiedCardinality) AS cardinality",
-        iri=iri,
-    )
-    for r in restrictions:
-        if r["value"] and ":" not in r["value"]:
-            r["value"] = "(class expression)"
+    restrictions = class_restrictions(driver, iri)
+    supers = superclass_distances(driver, iri)
     return {
         "iri": node["iri"],
         "types": node["labels"],
@@ -150,11 +133,80 @@ def describe_class(driver: Driver, iri: str) -> dict[str, Any] | None:
         "superclasses": related("(n)-[:rdfs__subClassOf]->(x)"),
         "subclasses": related("(x)-[:rdfs__subClassOf]->(n)"),
         "equivalent_classes": related("(n)-[:owl__equivalentClass]-(x)"),
-        "properties_with_domain": related(
-            "(x)-[:rdfs__domain]->(n)", f"{member}<-[:rdfs__domain]-(x)"
-        ),
-        "properties_with_range": related(
-            "(x)-[:rdfs__range]->(n)", f"{member}<-[:rdfs__range]-(x)"
-        ),
+        "properties_with_domain": properties_on(driver, "rdfs__domain", supers),
+        "properties_with_range": properties_on(driver, "rdfs__range", supers),
         "restrictions": restrictions,
     }
+
+
+# Relationships that make up OWL class expressions (intersections, unions and their lists).
+_EXPRESSION_PATH = "owl__intersectionOf|owl__unionOf|rdf__first|rdf__rest"
+
+
+def class_restrictions(driver: Driver, iri: str) -> list[dict[str, Any]]:
+    """Property restrictions in the class's rdfs:subClassOf / owl:equivalentClass axioms.
+
+    Restrictions nested in intersectionOf / unionOf lists are included (IOF defines many
+    classes as ``A and (p some B)``). ``within_union`` marks ones inside a union, which are
+    alternatives rather than necessary conditions.
+    """
+    rows = read(
+        driver,
+        "MATCH (n:Resource {uri: $iri})-[axiom:rdfs__subClassOf|owl__equivalentClass]->(x) "
+        f"MATCH path = (x)-[:{_EXPRESSION_PATH}*0..20]->(r:owl__Restriction) "
+        "MATCH (r)-[:owl__onProperty]->(p) "
+        "OPTIONAL MATCH (r)-[q:owl__someValuesFrom|owl__allValuesFrom|owl__hasValue"
+        "|owl__onClass]->(v) "
+        "RETURN DISTINCT replace(replace(type(axiom), 'rdfs__', ''), 'owl__', '') AS via, "
+        "any(rel IN relationships(path) WHERE type(rel) = 'owl__unionOf') AS within_union, "
+        "p.uri AS property, coalesce(p.rdfs__label, p.skos__prefLabel) AS property_label, "
+        "replace(type(q), 'owl__', '') AS restriction, v.uri AS value, "
+        "coalesce(v.rdfs__label, v.skos__prefLabel) AS value_label, "
+        "coalesce(r.owl__cardinality, r.owl__minCardinality, r.owl__maxCardinality, "
+        "r.owl__qualifiedCardinality, r.owl__minQualifiedCardinality, "
+        "r.owl__maxQualifiedCardinality) AS cardinality",
+        iri=iri,
+    )
+    for r in rows:
+        if r["value"] and ":" not in r["value"]:
+            r["value"] = "(class expression)"
+    rows.sort(key=lambda r: (r["within_union"], r["via"], r["property_label"] or r["property"]))
+    return rows
+
+
+def superclass_distances(driver: Driver, iri: str) -> dict[str, int]:
+    """The class itself (0) and its named rdfs:subClassOf ancestors with their distance."""
+    rows = read(
+        driver,
+        "MATCH path = (n:Resource {uri: $iri})-[:rdfs__subClassOf*0..20]->(s) "
+        "WHERE s.uri CONTAINS ':' RETURN s.uri AS iri, min(length(path)) AS distance",
+        iri=iri,
+    )
+    return {r["iri"]: r["distance"] for r in rows}
+
+
+def properties_on(driver: Driver, rel: str, classes: dict[str, int]) -> list[dict[str, Any]]:
+    """Properties whose ``rel`` (rdfs__domain / rdfs__range) is one of ``classes``, directly
+    or as a member of an owl:unionOf. ``via`` is the class it is declared on (the class
+    itself or an ancestor) and ``distance`` how many subClassOf steps away that is."""
+    if not classes:
+        return []
+    rows = read(
+        driver,
+        f"MATCH (x:Resource)-[:{rel}]->(d) WHERE x.uri CONTAINS ':' "
+        "OPTIONAL MATCH (d)-[:owl__unionOf]->()-[:rdf__rest*0..]->()-[:rdf__first]->(m) "
+        "WITH x, d, collect(m.uri) AS members "
+        "WITH x, [c IN $classes WHERE c = d.uri OR c IN members] AS hits WHERE size(hits) > 0 "
+        "RETURN x.uri AS iri, coalesce(x.rdfs__label, x.skos__prefLabel) AS label, "
+        "CASE WHEN x:owl__ObjectProperty THEN 'object' "
+        "WHEN x:owl__DatatypeProperty THEN 'datatype' ELSE 'other' END AS kind, "
+        "collect(hits) AS hits",
+        classes=list(classes),
+    )
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        via = min((c for hits in row.pop("hits") for c in hits), key=lambda c: classes[c])
+        best = out.get(row["iri"])
+        if best is None or classes[via] < best["distance"]:
+            out[row["iri"]] = {**row, "via": via, "distance": classes[via]}
+    return sorted(out.values(), key=lambda r: (r["distance"], r["label"] or r["iri"]))

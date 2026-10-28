@@ -62,13 +62,33 @@ def test_describe_class_shapes_result():
         if "owl__Restriction" in query:
             return [
                 {
+                    "via": "equivalentClass",
+                    "within_union": True,
+                    "property": "p2",
+                    "property_label": "b prop",
+                    "restriction": "someValuesFrom",
+                    "value": "x:V",
+                    "value_label": "v",
+                    "cardinality": None,
+                },
+                {
+                    "via": "equivalentClass",
+                    "within_union": False,
                     "property": "p",
                     "property_label": "has role",
                     "restriction": "someValuesFrom",
                     "value": "Nblank",
                     "value_label": None,
                     "cardinality": None,
-                }
+                },
+            ]
+        if "min(length(path)) AS distance" in query:
+            return [{"iri": CLS, "distance": 0}, {"iri": "bfo:ME", "distance": 1}]
+        if "rdfs__domain]->(d)" in query:
+            assert params["classes"] == [CLS, "bfo:ME"]
+            return [
+                {"iri": "x:p1", "label": "p1", "kind": "object", "hits": [["bfo:ME"]]},
+                {"iri": "x:p0", "label": "p0", "kind": "object", "hits": [["bfo:ME"], [CLS]]},
             ]
         if "(n)-[:rdfs__subClassOf]->(x)" in query:
             return [
@@ -84,6 +104,14 @@ def test_describe_class_shapes_result():
     assert d["definition"] == "a material artifact ..."
     assert "uri" not in d["annotations"]
     assert [x["label"] for x in d["superclasses"]] == ["a", "b"]
+    # necessary conditions first, blank values hidden
+    assert [r["property"] for r in d["restrictions"]] == ["p", "p2"]
     assert d["restrictions"][0]["value"] == "(class expression)"
-    domain_query = next(q for q, _ in driver.queries if "rdfs__domain" in q)
-    assert domain_query.count("RETURN DISTINCT") == 2 and " UNION " in domain_query
+    # inherited domains: closest declaration wins, sorted by distance
+    assert [(p["iri"], p["via"], p["distance"]) for p in d["properties_with_domain"]] == [
+        ("x:p0", CLS, 0),
+        ("x:p1", "bfo:ME", 1),
+    ]
+    assert d["properties_with_range"] == []
+    restriction_query = next(q for q, _ in driver.queries if "owl__Restriction" in q)
+    assert "owl__intersectionOf|owl__unionOf|rdf__first|rdf__rest" in restriction_query
