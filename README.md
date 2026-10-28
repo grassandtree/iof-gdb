@@ -77,9 +77,11 @@ uv run iof-gdb stats
 
 ## 4. Claude Code에서 MCP 쓰기
 
-저장소 루트의 [`.mcp.json`](.mcp.json)에 두 서버가 등록돼 있다. 비밀번호는 파일에 없고 `${NEO4J_PASSWORD}` 같은 환경변수 확장만 쓴다.
+저장소 루트의 [`.mcp.json`](.mcp.json)에 두 서버가 등록돼 있다. 둘 다 `.env`(또는 환경변수, 환경변수가 우선)에서 접속 정보를 읽으므로 따로 export할 필요가 없고, `.mcp.json`에는 비밀번호가 없다.
 
-1. Claude Code를 띄우는 셸에 `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD`(/ `NEO4J_DATABASE`)를 export한다. (`neo4j-cypher`는 `.env`를 읽지 않는다. `iof-gdb`는 `.env`도 읽는다.)
+- `neo4j-cypher`는 래퍼 `iof-gdb-cypher`로 띄운다. 공식 `mcp-neo4j-cypher`는 환경변수만 읽는데, Claude Code는 `.mcp.json`의 `${VAR}`를 `.env`가 아니라 자기를 실행한 셸에서 채운다. 래퍼가 `iof-gdb`와 같은 방식으로 설정을 읽어 **환경변수로** 넘긴 뒤(명령줄 인자로 넘기면 `ps`에 보인다) `uvx mcp-neo4j-cypher@0.6.0`을 실행한다. 버전은 `.mcp.json`의 인자에서 바꾼다.
+
+1. `.env`를 채운다 (위 2번).
 2. 저장소 루트에서 `claude` 실행 → 프로젝트 MCP 서버 사용을 승인 → `/mcp`로 두 서버가 연결됐는지 확인.
 3. 이렇게 물어본다.
    - "BFO의 material entity 하위 IOF 클래스 보여줘" → `neo4j-cypher`
