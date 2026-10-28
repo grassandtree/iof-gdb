@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# iof-gdb: downloaded ontology copies (re-create with `uv run iof-gdb fetch-iof`)
+data/ontologies/*
+!data/ontologies/.gitkeep

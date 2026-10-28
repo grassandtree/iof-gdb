@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from neo4j import Driver, GraphDatabase
@@ -61,12 +62,13 @@ def load_settings(env_file: str | os.PathLike[str] | None = None) -> Settings:
     )
 
 
-def create_driver(settings: Settings) -> Driver:
+def create_driver(settings: Settings, **config: Any) -> Driver:
     """Create a Neo4j driver whose sessions default to ``settings.database``."""
     return GraphDatabase.driver(
         settings.uri,
         auth=(settings.username, settings.password),
         database=settings.database,
+        **config,
     )
 
 
