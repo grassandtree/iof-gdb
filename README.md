@@ -109,6 +109,15 @@ MCP Inspector로 도구를 직접 호출해볼 수도 있다.
 npx @modelcontextprotocol/inspector uv run iof-gdb-mcp
 ```
 
+### Neo4j Agent Skills
+
+[`.claude/settings.json`](.claude/settings.json)에 Neo4j 공식 스킬 모음 [neo4j-contrib/neo4j-skills](https://github.com/neo4j-contrib/neo4j-skills) 플러그인이 등록돼 있다 (Cypher 작성·최적화, 그래프 모델링, Python 드라이버, MCP, Aura 등). 저장소를 신뢰하면 Claude Code가 마켓플레이스 추가와 플러그인 설치를 제안한다. 버전은 고정하지 않아서 업스트림 업데이트가 그대로 반영된다. `/plugin list`로 확인하고, 수동으로 넣으려면:
+
+```
+/plugin marketplace add https://github.com/neo4j-contrib/neo4j-skills.git
+/plugin install neo4j-skills@neo4j-skills-marketplace
+```
+
 ## 그래프 구조
 
 rdflib-neo4j의 `SHORTEN` 전략을 쓴다. 술어와 `rdf:type` 대상 IRI는 `prefix__localName`으로 바뀐다.

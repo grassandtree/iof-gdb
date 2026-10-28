@@ -25,3 +25,10 @@ def test_dependencies_are_pinned():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     deps = project["project"]["dependencies"] + project["dependency-groups"]["dev"]
     assert deps and all(re.fullmatch(r"[A-Za-z0-9_.-]+==[\w.]+", d) for d in deps)
+
+
+def test_neo4j_skills_plugin_registered():
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text())
+    market = settings["extraKnownMarketplaces"]["neo4j-skills-marketplace"]["source"]
+    assert market == {"source": "github", "repo": "neo4j-contrib/neo4j-skills"}
+    assert settings["enabledPlugins"]["neo4j-skills@neo4j-skills-marketplace"] is True
