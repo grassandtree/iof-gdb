@@ -1,0 +1,42 @@
+[project]
+name = "iof-gdb"
+version = "0.1.0"
+description = "Load IOF Core / BFO ontologies and instance data into Neo4j Aura and expose them to Claude via MCP"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp==2.3.0",
+    "neo4j==6.4.1",
+    "python-dotenv==1.2.4",
+    "rdflib==7.6.0",
+    "rdflib-neo4j==1.1",
+    "typer==0.27.3",
+]
+
+[project.scripts]
+iof-gdb = "iof_gdb.cli:app"
+iof-gdb-mcp = "iof_gdb.server:main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: needs a reachable Neo4j (NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
