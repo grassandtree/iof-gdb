@@ -30,6 +30,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]
 markers = [
     "integration: needs a reachable Neo4j (NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD)",
 ]
