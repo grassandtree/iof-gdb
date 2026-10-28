@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+         xmlns:owl="http://www.w3.org/2002/07/owl#">
+  <owl:Ontology rdf:about="https://test.example/onto/mid-declared">
+    <owl:versionIRI rdf:resource="https://test.example/onto/2026/mid"/>
+    <owl:imports rdf:resource="https://test.example/onto/root"/>
+    <owl:imports rdf:resource="https://test.example/onto/2026/mid"/>
+  </owl:Ontology>
+  <owl:Class rdf:about="https://test.example/onto/B">
+    <rdfs:label>B</rdfs:label>
+  </owl:Class>
+</rdf:RDF>

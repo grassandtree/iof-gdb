@@ -1,0 +1,14 @@
+# Example instance data: pump P-101 and the equipment role it bears.
+# Classes and properties come from IOF Core (Release 202603).
+@prefix rdf:       <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:      <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:       <http://www.w3.org/2002/07/owl#> .
+@prefix iofconstr: <https://spec.industrialontologies.org/ontology/construct/> .
+@prefix inst:      <https://example.org/iof-gdb/instance/> .
+
+inst:P-101 a owl:NamedIndividual, iofconstr:PieceOfEquipment ;
+    rdfs:label "Pump P-101" ;
+    iofconstr:hasRole inst:P-101-equipment-role .
+
+inst:P-101-equipment-role a owl:NamedIndividual, iofconstr:EquipmentRole ;
+    rdfs:label "Equipment role of P-101" .
