@@ -1,2 +1,177 @@
 # iof-gdb
+
 #neo4j #IOF #BFO
+
+IOF Core / BFO 온톨로지와 자체 인스턴스 데이터를 **Neo4j Aura**에 넣고, Claude가 **MCP**로 조회·입력하게 만드는 프로젝트.
+
+- Aura는 n10s 플러그인을 못 쓰기 때문에 RDF 입력은 [rdflib-neo4j](https://github.com/neo4j-labs/rdflib-neo4j)로 한다 (n10s 없이 동작하고, n10s와 같은 그래프 구조로 저장).
+- MCP 서버 두 개를 같이 쓴다.
+  | 서버 | 역할 |
+  |---|---|
+  | `neo4j-cypher` (공식 [`mcp-neo4j-cypher`](https://pypi.org/project/mcp-neo4j-cypher/)) | 스키마 조회, 일반 Cypher 읽기/쓰기 |
+  | `iof-gdb` (이 저장소) | RDF/OWL 임포트, 온톨로지 탐색, 지식(인스턴스) 입력 |
+
+## 준비물
+
+- Python 3.12, [uv](https://docs.astral.sh/uv/)
+- Neo4j Aura 인스턴스 (Free 한도 노드 20만 / 관계 40만이면 충분. IOF Core + BFO + AnnotationVocabulary는 약 5,900 트리플 → 노드 약 1,500 / 관계 약 2,800)
+- Claude Code (MCP 사용 시)
+
+## 1. Aura 인스턴스 만들기
+
+1. [console.neo4j.io](https://console.neo4j.io)에서 인스턴스를 만든다.
+2. 생성할 때 내려받는 credentials 파일에 `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`(, `NEO4J_DATABASE`)가 있다. 비밀번호는 이때만 보여주니 안전하게 보관한다.
+
+## 2. 설치와 `.env`
+
+```bash
+uv sync
+```
+
+```bash
+cp .env.example .env
+```
+
+`.env`를 열어 접속 정보를 채운다. `.env`는 `.gitignore`에 들어 있어서 커밋되지 않는다. 같은 이름의 환경변수가 이미 있으면 그쪽이 우선한다.
+
+| 변수 | 설명 |
+|---|---|
+| `NEO4J_URI` | `neo4j+s://xxxx.databases.neo4j.io` |
+| `NEO4J_USERNAME` / `NEO4J_PASSWORD` | 접속 계정 |
+| `NEO4J_DATABASE` | 기본 `neo4j`. credentials 파일에 다른 값이 있으면 그 값 |
+| `IOF_GDB_INSTANCE_NS` | (선택) 자체 인스턴스 IRI 네임스페이스. CURIE `inst:`로 쓴다. 기본 `https://example.org/iof-gdb/instance/` |
+
+## 3. 초기화 → 온톨로지 받기 → 적재
+
+```bash
+uv run iof-gdb init
+```
+연결을 확인하고 rdflib-neo4j가 요구하는 제약조건 `n10s_unique_uri`(`:Resource(uri)` 유일)를 만든다.
+
+```bash
+uv run iof-gdb fetch-iof
+```
+IOF Core와 그 `owl:imports`(BFO 2020, IOF AnnotationVocabulary)를 `data/ontologies/`에 받고, IRI → 파일 대응표 `catalog-v001.xml`(Protégé 호환)을 만든다. 받은 파일은 git에 넣지 않는다.
+
+```bash
+uv run iof-gdb import data/ontologies/Core.rdf --follow-imports
+```
+`--follow-imports`는 `owl:imports`를 재귀적으로 따라가며 로컬 사본을 먼저 쓰고, 없으면 URL에서 받는다. 이미 읽은 온톨로지(import IRI, 선언된 온톨로지 IRI, versionIRI 모두)는 건너뛴다.
+
+```bash
+uv run iof-gdb import data/instances/example-pump.ttl
+```
+
+```bash
+uv run iof-gdb stats
+```
+
+### CLI 요약
+
+| 명령 | 설명 |
+|---|---|
+| `iof-gdb init` | 연결 확인, 제약조건 생성 |
+| `iof-gdb import <path\|url> [--format ttl] [--follow-imports] [--auto-prefix]` | RDF 임포트. 형식은 확장자 → Content-Type → 내용 순으로 추정 (`.ttl`, `.owl`/`.rdf`(RDF/XML), `.nt`, `.n3`, `.jsonld`) |
+| `iof-gdb stats` | 노드/관계 수, 라벨·관계 타입별 개수 |
+| `iof-gdb fetch-iof [IRI ...] [--dest DIR] [--no-follow-imports]` | 온톨로지 로컬 사본 받기 (기본: IOF Core) |
+
+## 4. Claude Code에서 MCP 쓰기
+
+저장소 루트의 [`.mcp.json`](.mcp.json)에 두 서버가 등록돼 있다. 비밀번호는 파일에 없고 `${NEO4J_PASSWORD}` 같은 환경변수 확장만 쓴다.
+
+1. Claude Code를 띄우는 셸에 `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD`(/ `NEO4J_DATABASE`)를 export한다. (`neo4j-cypher`는 `.env`를 읽지 않는다. `iof-gdb`는 `.env`도 읽는다.)
+2. 저장소 루트에서 `claude` 실행 → 프로젝트 MCP 서버 사용을 승인 → `/mcp`로 두 서버가 연결됐는지 확인.
+3. 이렇게 물어본다.
+   - "BFO의 material entity 하위 IOF 클래스 보여줘" → `neo4j-cypher`
+   - "펌프 P-101 개체를 추가해줘" → `iof-gdb`의 `search_classes` → `add_individual`
+
+`neo4j-cypher`의 `get_neo4j_schema`는 APOC을 쓴다. Aura에는 APOC Core가 기본으로 들어 있다.
+
+### `iof-gdb` MCP 도구
+
+| 도구 | 기능 |
+|---|---|
+| `import_rdf(source, format?, follow_imports?, auto_prefix?)` | 파일 경로/URL 임포트 |
+| `import_rdf_text(content, format="turtle", auto_prefix?)` | Claude가 만든 TTL 스니펫을 바로 입력 (지식 입력 기본 경로) |
+| `search_classes(term, limit)` | `rdfs:label`/IRI로 OWL 클래스 검색 |
+| `describe_class(iri_or_curie)` | 라벨·정의·상위/하위 클래스·제약(restriction)·domain/range로 연결된 속성 |
+| `search_properties(term, limit, kind?)` | object/datatype property 검색 (domain, range 포함) |
+| `add_individual(iri, class_iri, label?, properties?)` | 클래스가 DB에 있는지 확인한 뒤 인스턴스 생성 |
+| `add_relation(subject, property, object)` | 속성(object property)과 양쪽 개체가 DB에 있는지 확인한 뒤 관계 생성 |
+| `graph_stats()` | 현황 요약 |
+| 리소스 `iof://prefixes` | prefix 목록 (CURIE 작성용) |
+
+`add_individual` / `add_relation`도 내부적으로 rdflib 트리플을 만들어 파일 임포트와 같은 경로로 넣는다. 그래서 모든 데이터가 같은 형식으로 저장된다.
+
+MCP Inspector로 도구를 직접 호출해볼 수도 있다.
+
+```bash
+npx @modelcontextprotocol/inspector uv run iof-gdb-mcp
+```
+
+## 그래프 구조
+
+rdflib-neo4j의 `SHORTEN` 전략을 쓴다. 술어와 `rdf:type` 대상 IRI는 `prefix__localName`으로 바뀐다.
+
+| RDF | Neo4j |
+|---|---|
+| 모든 IRI 주어/목적어 | `(:Resource {uri: "..."})` |
+| `ex:x rdf:type owl:Class` | 라벨 `owl__Class` |
+| `ex:x rdfs:label "pump"` | 속성 `rdfs__label` |
+| `ex:x rdfs:subClassOf ex:y` | 관계 `[:rdfs__subClassOf]` |
+| blank node (restriction, unionOf 등) | `uri`가 blank node id인 `:Resource` |
+
+prefix는 [`src/iof_gdb/prefixes.py`](src/iof_gdb/prefixes.py)에 있다. Cypher에서 백틱 없이 쓰도록 하이픈을 뺐다 (IOF 파일의 `iof-av:` → 여기선 `iofav:`).
+
+| prefix | 네임스페이스 |
+|---|---|
+| `bfo` | `http://purl.obolibrary.org/obo/` (BFO_0000040 → `bfo__BFO_0000040`) |
+| `iofconstr` | `https://spec.industrialontologies.org/ontology/construct/` (IOF Core 클래스·속성, Release 202603) |
+| `iofav` | `https://spec.industrialontologies.org/ontology/annotation/` (IOF 어노테이션) |
+| `iofind` | `https://spec.industrialontologies.org/ontology/individual/` |
+| `iofcore` | `https://spec.industrialontologies.org/ontology/core/Core/` |
+| `inst` | `IOF_GDB_INSTANCE_NS` |
+| `rdf`, `rdfs`, `owl`, `xsd`, `skos`, `dc`, `dcterms` | W3C / Dublin Core |
+
+**미등록 네임스페이스**: SHORTEN은 prefix가 없는 네임스페이스를 만나면 실패한다. 그래서 임포트 전에 전부 점검하고, 없으면 아무것도 쓰기 전에 목록과 함께 멈춘다. `--auto-prefix`(MCP: `auto_prefix=true`)를 주면 prefix를 만들어 쓰고, n10s처럼 `(:_NsPrefDef)` 노드에 저장해 다음 임포트에서도 같은 이름을 쓴다.
+
+예: BFO material entity 하위의 IOF 클래스
+
+```cypher
+MATCH (c:owl__Class)-[:rdfs__subClassOf*1..]->(:Resource {uri: "http://purl.obolibrary.org/obo/BFO_0000040"})
+WHERE c.uri STARTS WITH "https://spec.industrialontologies.org/"
+RETURN c.uri, c.rdfs__label ORDER BY c.rdfs__label
+```
+
+## 알아둘 점 (1차 버전의 한계)
+
+- **다중 값**: rdflib-neo4j 기본값(`HANDLE_MULTIVAL_STRATEGY.OVERWRITE`)이라 같은 술어의 리터럴이 여러 개면 마지막 값만 남는다. IOF Core에선 `skos:example`, `iofav:firstOrderLogicAxiom` 등이 일부 클래스에서 여러 개다.
+- **언어 태그**: 리터럴의 언어 태그(`@en`)는 저장되지 않는다.
+- **blank node**: OWL restriction, unionOf 등은 blank node로 저장된다. 같은 파일을 다시 임포트하면 IRI 노드는 MERGE되지만 blank node는 새로 생긴다.
+- `rdfs__subClassOf` 계층 정리 같은 후처리 Cypher는 후속 과제다.
+
+## 개발
+
+```bash
+uv run pytest
+```
+
+```bash
+uv run ruff check
+```
+
+- 단위 테스트는 메모리 Graph만 써서 DB가 필요 없다.
+- 통합 테스트(`@pytest.mark.integration`)는 `NEO4J_*` 설정이 있고 실제로 접속될 때만 돈다. 접속이 안 되면 이유와 함께 skip된다. 테스트용 노드는 끝나면 지운다.
+
+```bash
+uv run pytest -m integration -rs
+```
+
+### Claude Code 웹에서 작업할 때
+
+- Aura 접속 정보는 웹 환경의 환경변수로 등록한다. 저장소에는 넣지 않는다.
+- 샌드박스 네트워크 설정에서 Aura(`*.databases.neo4j.io`, 포트 7687)와 IOF/BFO 다운로드 주소로 나가는 접속이 허용돼야 한다. 막혀 있으면 단위 테스트까지만 하고, 통합 테스트와 실제 적재는 로컬에서 한다.
+
+## 라이선스
+
+MIT. 내려받는 IOF·BFO 온톨로지는 각 배포처의 라이선스를 따른다.
