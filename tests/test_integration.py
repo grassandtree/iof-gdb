@@ -2,7 +2,7 @@
 
 import pytest
 
-from iof_gdb import db, rdf_import
+from iof_gdb import db, ontology, rdf_import
 
 pytestmark = pytest.mark.integration
 
@@ -34,3 +34,33 @@ def test_import_small_ttl(neo4j_settings, neo4j_driver, test_ns):
         a=test_ns + "A",
     )
     assert rows == [{"a": "A", "b": "B"}]
+
+
+def test_describe_class_follows_class_expressions(neo4j_settings, neo4j_driver, test_ns):
+    """Same shape as IOF's PieceOfEquipment: C == (A or B) and (hasRole some R), C < Top."""
+    ttl = f"""
+    @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+    <{test_ns}C> a owl:Class ; rdfs:label "c" ;
+        rdfs:subClassOf <{test_ns}Top> ;
+        owl:equivalentClass [ a owl:Class ; owl:intersectionOf (
+            [ a owl:Class ; owl:unionOf ( <{test_ns}A> <{test_ns}B> ) ]
+            [ a owl:Restriction ; owl:onProperty <{test_ns}hasRole> ;
+              owl:someValuesFrom <{test_ns}R> ] ) ] .
+    <{test_ns}Top> a owl:Class ; rdfs:label "top" .
+    <{test_ns}hasRole> a owl:ObjectProperty ; rdfs:label "has role" ;
+        rdfs:domain [ a owl:Class ; owl:unionOf ( <{test_ns}Top> <{test_ns}Other> ) ] .
+    <{test_ns}direct> a owl:ObjectProperty ; rdfs:label "direct" ; rdfs:range <{test_ns}C> .
+    """
+    rdf_import.import_text(ttl, settings=neo4j_settings)
+    d = ontology.describe_class(neo4j_driver, test_ns + "C")
+
+    [r] = d["restrictions"]
+    assert r["property"] == test_ns + "hasRole"
+    assert r["restriction"] == "someValuesFrom" and r["value"] == test_ns + "R"
+    assert r["via"] == "equivalentClass" and r["within_union"] is False
+
+    [dom] = d["properties_with_domain"]
+    assert (dom["iri"], dom["via"], dom["distance"]) == (test_ns + "hasRole", test_ns + "Top", 1)
+    [rng] = d["properties_with_range"]
+    assert (rng["iri"], rng["distance"]) == (test_ns + "direct", 0)
