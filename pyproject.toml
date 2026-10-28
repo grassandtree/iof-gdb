@@ -17,6 +17,7 @@ dependencies = [
 [project.scripts]
 iof-gdb = "iof_gdb.cli:app"
 iof-gdb-mcp = "iof_gdb.server:main"
+iof-gdb-cypher = "iof_gdb.cypher_server:main"
 
 [build-system]
 requires = ["uv_build>=0.11.32,<0.12.0"]
