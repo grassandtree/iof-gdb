@@ -75,6 +75,7 @@ uv run iof-gdb stats
 | `iof-gdb init` | 연결 확인, 제약조건 생성 |
 | `iof-gdb import <path\|url> [--format ttl] [--follow-imports] [--auto-prefix]` | RDF 임포트. 형식은 확장자 → Content-Type → 내용 순으로 추정 (`.ttl`, `.owl`/`.rdf`(RDF/XML), `.nt`, `.n3`, `.jsonld`, 번역표 `.tsv`) |
 | `iof-gdb stats` | 노드/관계 수, 라벨·관계 타입별 개수 |
+| `iof-gdb derive` | 파생 구조(`:BlankNode`, `SUBCLASS_OF`) 다시 만들기 (임포트 때마다 자동 실행) |
 | `iof-gdb reset [--yes]` | DB의 모든 노드·관계 삭제 (확인 후, 제약조건은 유지) |
 | `iof-gdb fetch [IRI ...] [--dest DIR] [--no-follow-imports]` | 온톨로지 로컬 사본 받기 (기본: 프로필의 `[fetch]` 목록). `fetch-iof`는 같은 명령의 옛 이름 |
 | `iof-gdb profile [이름\|경로.toml]` | 프로필 확인·검증 (prefix, 클래스·라벨·정의로 쓰는 저장 이름, fetch 목록) |
@@ -100,7 +101,7 @@ uv run iof-gdb stats
 | `import_rdf(source, format?, follow_imports?, auto_prefix?)` | 파일 경로/URL 임포트 |
 | `import_rdf_text(content, format="turtle", auto_prefix?)` | Claude가 만든 TTL 스니펫을 바로 입력 (지식 입력 기본 경로) |
 | `search_classes(term, limit)` | 라벨·동의어(모든 언어)·IRI로 클래스 검색. 결과에 언어별 라벨(`labels`) 포함 |
-| `describe_class(iri_or_curie)` | 라벨·정의(언어별 포함)·상위/하위 클래스·제약(restriction)·domain/range로 연결된 속성 |
+| `describe_class(iri_or_curie)` | 라벨·정의(언어별 포함)·상위/하위 클래스·추론된 상위 클래스·제약(restriction)·domain/range로 연결된 속성 |
 | `search_properties(term, limit, kind?)` | object/datatype property 검색 (domain, range 포함) |
 | `add_individual(iri, class_iri, label?, properties?)` | 클래스가 DB에 있는지 확인한 뒤 인스턴스 생성 |
 | `add_relation(subject, property, object)` | 속성(object property)과 양쪽 개체가 DB에 있는지 확인한 뒤 관계 생성 |
@@ -193,7 +194,25 @@ rdflib-neo4j의 `SHORTEN` 전략을 쓴다. 술어와 `rdf:type` 대상 IRI는 `
 | `ex:x rdfs:label "펌프"@ko` | 속성 `` `rdfs__label@ko` `` (아래 "저장 규칙" 참고) |
 | `ex:x skos:altLabel "a", "b"` (다중 값으로 지정된 속성) | 배열 `skos__altLabel: ["a", "b"]` |
 | `ex:x rdfs:subClassOf ex:y` | 관계 `[:rdfs__subClassOf]` |
-| blank node (restriction, unionOf 등) | `uri`가 내용 기반 해시(`:` 없음)인 `:Resource` |
+| blank node (restriction, unionOf 등) | `uri`가 내용 기반 해시(`:` 없음)인 `:Resource:BlankNode` |
+| (파생) 이름 있는 클래스 사이의 상위 클래스 | `[:SUBCLASS_OF {inferred: false\|true}]` |
+
+### 파생 구조 (`SUBCLASS_OF`, `:BlankNode`)
+
+`rdfs:subClassOf`는 진짜 상위 클래스(`Pump ⊑ Equipment`)와 조건(`Equipment ⊑ hasRole some EquipmentRole`, blank node)을 같은 관계로 저장한다. 그래서 `[:rdfs__subClassOf*]`를 따라가면 라벨 없는 blank node가 섞여 나온다. 임포트가 끝날 때마다 다음을 다시 만든다 ([`derive.py`](src/iof_gdb/derive.py)). 원본 `rdfs__subClassOf`는 그대로 둔다.
+
+- **`:BlankNode` 라벨**: 모든 blank node에 붙는다. `WHERE NOT n:BlankNode`로 거른다.
+- **`SUBCLASS_OF`**: 이름 있는 클래스 사이에만 만든다.
+  - `inferred: false`: `rdfs:subClassOf`에서 복사한 것
+  - `inferred: true`: `owl:equivalentClass`/`rdfs:subClassOf`의 `owl:intersectionOf`에 이름 있는 클래스가 들어 있을 때 (`A ≡ B ⊓ …`이면 `A ⊑ B`). 합집합(`unionOf`) 멤버는 상위 클래스가 아니라서 만들지 않는다. 이 규칙 하나만 쓰는 것이고 추론기는 아니다. 완전한 추론이 필요하면 임포트 전에 [ROBOT](https://robot.obolibrary.org/)(`reason`, ELK) 같은 OWL 추론기로 처리한다.
+
+IOF Core + BFO에서는 복사 125개, 추론 3개(예: manufacturer ⊑ organization)가 생긴다. 이름이 대문자인 건 RDF에서 온 `prefix__local` 이름과 구분하기 위해서다.
+
+```cypher
+MATCH (c:Resource {uri: "https://spec.industrialontologies.org/ontology/construct/PieceOfEquipment"})
+      -[:SUBCLASS_OF*]->(sup)
+RETURN sup.rdfs__label, sup.`rdfs__label@ko`
+```
 
 ### 저장 규칙
 
@@ -220,7 +239,7 @@ W3C prefix(`rdf`, `rdfs`, `owl`, `xsd`, `skos`, `dc`, `dcterms`)는 [`prefixes.p
 예: BFO material entity 하위의 IOF 클래스
 
 ```cypher
-MATCH (c:owl__Class)-[:rdfs__subClassOf*1..]->(:Resource {uri: "http://purl.obolibrary.org/obo/BFO_0000040"})
+MATCH (c:owl__Class)-[:SUBCLASS_OF*1..]->(:Resource {uri: "http://purl.obolibrary.org/obo/BFO_0000040"})
 WHERE c.uri STARTS WITH "https://spec.industrialontologies.org/"
 RETURN c.uri, c.rdfs__label ORDER BY c.rdfs__label
 ```
@@ -324,7 +343,7 @@ uv run iof-gdb import data/instances/example-pump.ttl
 - **오래된 값**: 다시 임포트하면 같은 IRI의 속성은 새 값으로 바뀌지만, 원본에서 지워진 값이나 관계는 DB에서 지워지지 않는다. 원본에서 많이 바뀌었으면 위 절차로 다시 넣는다.
 - **다중 값 판단 범위**: 같은 임포트 안의 값만 본다. 이미 DB에 단일 값이 있는 속성에 다른 임포트로 값을 넣으면 덮어쓴다 (여러 값이 필요한 속성은 프로필 `multivalued`에 넣는다).
 - **배열 값 타입**: Neo4j 배열은 값 타입이 같아야 해서, 한 속성에 문자열과 숫자를 섞어 넣으면 임포트가 실패한다.
-- `rdfs__subClassOf` 계층 정리 같은 후처리 Cypher는 후속 과제다.
+- **파생 구조**: `SUBCLASS_OF`와 `:BlankNode`는 임포트 때마다 전체를 다시 만든다. Cypher로 `rdfs__subClassOf`를 직접 고쳤다면 `uv run iof-gdb derive`로 다시 맞춘다.
 
 ## 개발
 

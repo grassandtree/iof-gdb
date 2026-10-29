@@ -160,6 +160,8 @@ def describe_class(driver: Driver, iri: str, *, names: GraphNames) -> dict[str, 
         "definitions": by_language(props, names.definition_props),
         "annotations": props,
         "superclasses": related(f"(n)-[:{sub}]->(x)"),
+        # derived by derive.py: named superclasses implied by owl:intersectionOf definitions
+        "inferred_superclasses": related("(n)-[:SUBCLASS_OF {inferred: true}]->(x)"),
         "subclasses": related(f"(x)-[:{sub}]->(n)"),
         "equivalent_classes": related(f"(n)-[:{equiv}]-(x)"),
         "properties_with_domain": properties_on(driver, names.domain, supers, names=names),

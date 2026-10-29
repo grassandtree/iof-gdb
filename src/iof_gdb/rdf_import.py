@@ -21,7 +21,7 @@ from pathlib import Path
 from rdflib import OWL, RDF, Graph, URIRef
 from rdflib_neo4j import Neo4jStore
 
-from . import db, storage
+from . import db, derive, storage
 from .babelon import parse_babelon
 from .config import (
     DEFAULT_INSTANCE_NS,
@@ -32,7 +32,7 @@ from .config import (
     load_settings,
 )
 from .prefixes import build_prefixes, find_unregistered, generate_prefixes, shorten
-from .profile import active_profile_name, load_profile, prefix_map, profile_for
+from .profile import active_profile_name, load_profile, names_for, prefix_map, profile_for
 
 FORMAT_BY_SUFFIX = {
     ".ttl": "turtle",
@@ -391,6 +391,7 @@ def import_graph(
         db.wrap_scalars_in_lists(driver, subjects, array_props)
         count = write_graph(prepared.graph, settings, prefixes, prepared.array_predicates)
         db.save_prefix_defs(driver, prefixes)
+        derive.derive(driver, names_for(settings.profile))
     finally:
         driver.close()
     return count, new

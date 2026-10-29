@@ -50,6 +50,9 @@ in full or as CURIEs; see the iof://prefixes and iof://profile resources.
 Language-tagged text is also stored per language as `property@lang` (languages: {languages}),
 e.g. n.`{label_prop}@ko` (backticks needed); {label_prop} itself holds the untagged or
 {primary} value. Multivalued properties ({multivalued}) are lists.
+For class hierarchies prefer the derived (:Resource)-[:SUBCLASS_OF]->(:Resource): named classes
+only, `inferred: true` when implied by an owl:intersectionOf definition. {sub_class_of} also
+points to restriction blank nodes; blank nodes carry the :BlankNode label.
 To add knowledge: search_classes / search_properties first, then add_individual and
 add_relation (they refuse unknown classes and properties), or import_rdf_text for Turtle.
 Use the neo4j-cypher server for free-form Cypher.

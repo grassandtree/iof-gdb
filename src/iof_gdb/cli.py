@@ -9,9 +9,16 @@ from typing import Annotated, Any
 import typer
 from neo4j.exceptions import AuthError, ServiceUnavailable
 
-from . import db, rdf_import
+from . import db, derive, rdf_import
 from .config import ONTOLOGY_DIR, ConfigError, create_driver, load_settings
-from .profile import GraphNames, ProfileError, active_profile_name, builtin_profiles, load_profile
+from .profile import (
+    GraphNames,
+    ProfileError,
+    active_profile_name,
+    builtin_profiles,
+    load_profile,
+    names_for,
+)
 from .storage import MultiValueError
 
 app = typer.Typer(
@@ -106,6 +113,16 @@ def reset(
         _echo_json({"deleted_nodes": _run(db.reset, driver) if before["nodes"] else 0})
     finally:
         driver.close()
+
+
+@app.command("derive")
+def derive_cmd() -> None:
+    """Rebuild derived structure: :BlankNode labels and SUBCLASS_OF (runs after every import)."""
+
+    def run(driver):
+        return derive.derive(driver, names_for(load_settings().profile))
+
+    _echo_json(_run(_with_driver, run))
 
 
 @app.command()

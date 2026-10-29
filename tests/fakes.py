@@ -18,3 +18,45 @@ class FakeDriver:
 
     def close(self):
         pass
+
+
+class FakeResult:
+    def __init__(self, record):
+        self._record = record
+
+    def single(self):
+        return self._record
+
+
+class FakeTx:
+    def __init__(self, responder, log):
+        self.responder, self.log = responder, log
+
+    def run(self, query, **params):
+        self.log.append(query)
+        return FakeResult(self.responder(query))
+
+
+class FakeSession:
+    def __init__(self, responder, log):
+        self.responder, self.log = responder, log
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute_write(self, fn, *args):
+        return fn(FakeTx(self.responder, self.log), *args)
+
+
+class FakeSessionDriver:
+    """Driver stand-in for code that uses session().execute_write()."""
+
+    def __init__(self, responder):
+        self.responder = responder  # query -> record dict
+        self.queries = []
+
+    def session(self, **kwargs):
+        return FakeSession(self.responder, self.queries)
