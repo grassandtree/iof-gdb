@@ -293,7 +293,14 @@ uv run iof-gdb import data/translations/bfo-ko.babelon.tsv
 
 | 파일 | 내용 | 상태 |
 |---|---|---|
-| [`bfo-ko.babelon.tsv`](data/translations/bfo-ko.babelon.tsv) | BFO 2020 클래스 36개 + IOF Core가 쓰는 BFO 관계 33개 | AI 초안, 검토 중 |
+| [`bfo-ko.babelon.tsv`](data/translations/bfo-ko.babelon.tsv) | BFO 2020 클래스 36개 + IOF Core가 쓰는 BFO 관계 33개 | AI 초안 (논쟁 용어는 추천안으로 잠정 채택) |
+| [`iof-core-ko.babelon.tsv`](data/translations/iof-core-ko.babelon.tsv) | IOF Core 202603 클래스 91, 객체 속성 83, 데이터 속성 2, 어노테이션 속성 28, 개체 2 | AI 초안, 검토 중 |
+
+```bash
+uv run iof-gdb import data/translations/iof-core-ko.babelon.tsv
+```
+
+테스트가 번역 파일을 검사한다: 열 구성, 중복 행, 서로 다른 용어에 같은 번역어가 붙었는지, `source_value`가 현재 영어 라벨과 같은지(온톨로지 사본이 있을 때).
 
 ## DB 비우고 다시 넣기
 

@@ -59,7 +59,7 @@ http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/b
 http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000195	rdfs:label	specifically depends on	특정하게 의존함		2026-10-29	0.6	exact	MachineTranslated
 http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000055	rdfs:label	realizes	실현함		2026-10-29	0.9	exact	MachineTranslated
 http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000058	rdfs:label	is concretized by	구체화됨		2026-10-29	0.6	exact	MachineTranslated
-http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000101	rdfs:label	is carrier of	운반함		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000101	rdfs:label	is carrier of	보유함		2026-10-29	0.4	exact	MachineTranslated
 http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000111	rdfs:label	has proper continuant part at all times	항상 진부분 지속체를 가짐		2026-10-29	0.6	exact	MachineTranslated
 http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000118	rdfs:label	has proper occurrent part	진부분 발생체를 가짐		2026-10-29	0.6	exact	MachineTranslated
 http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000137	rdfs:label	proper continuant part of at all times	항상 진부분 지속체임		2026-10-29	0.6	exact	MachineTranslated

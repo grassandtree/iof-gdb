@@ -94,3 +94,19 @@ def test_translations_match_current_source_labels(path):
         if r["source_value"] not in current:
             stale.append((r["subject_id"], r["source_value"], sorted(current)))
     assert not stale, f"source labels changed upstream: {stale[:5]}"
+
+
+def test_translations_are_unambiguous():
+    """Two terms must not share a translated label (search results would be ambiguous)."""
+    seen: dict[tuple[str, str, str], str] = {}
+    clashes = []
+    for path in TRANSLATIONS:
+        for r in csv.DictReader(path.open(encoding="utf-8"), delimiter="\t"):
+            value = r["translation_value"].strip()
+            if not value:
+                continue
+            key = (r["predicate_id"], r["translation_language"], value)
+            if key in seen and seen[key] != r["subject_id"]:
+                clashes.append((value, seen[key], r["subject_id"]))
+            seen.setdefault(key, r["subject_id"])
+    assert not clashes, clashes
