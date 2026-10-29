@@ -12,6 +12,7 @@ from neo4j.exceptions import AuthError, ServiceUnavailable
 from . import db, rdf_import
 from .config import ONTOLOGY_DIR, ConfigError, create_driver, load_settings
 from .profile import GraphNames, ProfileError, active_profile_name, builtin_profiles, load_profile
+from .storage import MultiValueError
 
 app = typer.Typer(
     help="Load RDF/OWL ontologies and instance data into Neo4j (profile: IOF_GDB_PROFILE).",
@@ -39,7 +40,7 @@ def _run(fn, *args, **kwargs):
         raise _fail(f"Neo4j authentication failed: {e.message}") from None
     except ServiceUnavailable as e:
         raise _fail(f"Neo4j is not reachable: {e}") from None
-    except (rdf_import.UnregisteredNamespaceError, ProfileError) as e:
+    except (rdf_import.UnregisteredNamespaceError, MultiValueError, ProfileError) as e:
         raise _fail(str(e)) from None
 
 
@@ -82,6 +83,29 @@ def import_cmd(
         auto_prefix=auto_prefix,
     )
     _echo_json(summary.as_dict())
+
+
+@app.command()
+def reset(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation.")] = False,
+) -> None:
+    """Delete ALL nodes and relationships in the database (constraints are kept)."""
+
+    settings = _run(load_settings)
+    driver = create_driver(settings)
+    try:
+        before = _run(db.stats, driver)
+        typer.echo(
+            f"Database {settings.database!r} at {settings.uri}: "
+            f"{before['nodes']} nodes, {before['relationships']} relationships.",
+            err=True,
+        )
+        confirmed = yes or not before["nodes"]
+        if not confirmed and not typer.confirm("Delete everything?", default=False, err=True):
+            raise typer.Abort()
+        _echo_json({"deleted_nodes": _run(db.reset, driver) if before["nodes"] else 0})
+    finally:
+        driver.close()
 
 
 @app.command()
@@ -148,6 +172,8 @@ def profile(
             "label_properties": names.label_props,
             "synonym_properties": names.synonym_props,
             "definition_properties": names.definition_props,
+            "languages": p.languages,
+            "multivalued": p.multivalued,
             "fetch_iris": p.fetch_iris,
         }
     )

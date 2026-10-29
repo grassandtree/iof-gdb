@@ -31,7 +31,7 @@ from .config import (
     load_settings,
 )
 from .http_app import TOKEN_ENV
-from .prefixes import build_prefixes, expand
+from .prefixes import build_prefixes, expand, shorten
 from .profile import (
     GraphNames,
     Profile,
@@ -47,6 +47,9 @@ RDF/OWL tools for a Neo4j graph loaded with rdflib-neo4j (n10s-style). Every nod
 :Resource with a unique `uri`; vocabulary is stored as prefix__localName (class label
 {class_labels}, label property {label_prop}, relationship {sub_class_of}). IRIs can be given
 in full or as CURIEs; see the iof://prefixes and iof://profile resources.
+Language-tagged text is also stored per language as `property@lang` (languages: {languages}),
+e.g. n.`{label_prop}@ko` (backticks needed); {label_prop} itself holds the untagged or
+{primary} value. Multivalued properties ({multivalued}) are lists.
 To add knowledge: search_classes / search_properties first, then add_individual and
 add_relation (they refuse unknown classes and properties), or import_rdf_text for Turtle.
 Use the neo4j-cypher server for free-form Cypher.
@@ -54,10 +57,15 @@ Use the neo4j-cypher server for free-form Cypher.
 
 
 def build_instructions(profile: Profile, names: GraphNames) -> str:
+    prefixes = build_prefixes(domain=profile.prefixes)
+    multivalued = [shorten(p, prefixes) or p for p in profile.multivalued]
     text = GENERIC_INSTRUCTIONS.format(
         class_labels=" / ".join(names.class_labels),
         label_prop=names.label_props[0],
         sub_class_of=names.sub_class_of,
+        languages=", ".join(profile.languages) or "none",
+        primary=profile.languages[0] if profile.languages else "first",
+        multivalued=", ".join(multivalued) or "none",
     )
     return text + ("\n" + profile.instructions + "\n" if profile.instructions else "")
 
@@ -204,6 +212,8 @@ def add_individual(
 
     iri: IRI or CURIE for the new individual, e.g. inst:P-101.
     class_iri: IRI or CURIE of a class that is already in the DB (see search_classes).
+    label: plain (untagged) label. For labels in a language use properties, e.g.
+    {"rdfs:label": {"value": "펌프", "lang": "ko"}}.
     properties: {property IRI/CURIE: value or [values]}. Object property values are IRIs of
     existing resources; data/annotation values are literals ({"value": "x", "lang": "en"} or
     {"value": "5", "datatype": "http://www.w3.org/2001/XMLSchema#integer"} also work).
@@ -263,6 +273,8 @@ def profile_resource() -> str:
             "label_properties": names.label_props,
             "synonym_properties": names.synonym_props,
             "definition_properties": names.definition_props,
+            "languages": PROFILE.languages,
+            "multivalued": PROFILE.multivalued,
         },
         indent=2,
     )

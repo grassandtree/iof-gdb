@@ -12,6 +12,10 @@ label_properties = ["rdfs:label", "skos:prefLabel"]
 synonym_properties = ["skos:altLabel"]
 definition_properties = ["skos:definition", "rdfs:comment", "dcterms:description"]
 
+[storage]
+languages = ["en"]
+multivalued = ["skos:altLabel", "skos:example", "skos:note", "skos:scopeNote"]
+
 [fetch]
 default_iris = []
 

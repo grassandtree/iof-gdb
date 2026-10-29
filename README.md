@@ -75,6 +75,7 @@ uv run iof-gdb stats
 | `iof-gdb init` | 연결 확인, 제약조건 생성 |
 | `iof-gdb import <path\|url> [--format ttl] [--follow-imports] [--auto-prefix]` | RDF 임포트. 형식은 확장자 → Content-Type → 내용 순으로 추정 (`.ttl`, `.owl`/`.rdf`(RDF/XML), `.nt`, `.n3`, `.jsonld`) |
 | `iof-gdb stats` | 노드/관계 수, 라벨·관계 타입별 개수 |
+| `iof-gdb reset [--yes]` | DB의 모든 노드·관계 삭제 (확인 후, 제약조건은 유지) |
 | `iof-gdb fetch [IRI ...] [--dest DIR] [--no-follow-imports]` | 온톨로지 로컬 사본 받기 (기본: 프로필의 `[fetch]` 목록). `fetch-iof`는 같은 명령의 옛 이름 |
 | `iof-gdb profile [이름\|경로.toml]` | 프로필 확인·검증 (prefix, 클래스·라벨·정의로 쓰는 저장 이름, fetch 목록) |
 
@@ -98,8 +99,8 @@ uv run iof-gdb stats
 |---|---|
 | `import_rdf(source, format?, follow_imports?, auto_prefix?)` | 파일 경로/URL 임포트 |
 | `import_rdf_text(content, format="turtle", auto_prefix?)` | Claude가 만든 TTL 스니펫을 바로 입력 (지식 입력 기본 경로) |
-| `search_classes(term, limit)` | `rdfs:label`/IRI로 OWL 클래스 검색 |
-| `describe_class(iri_or_curie)` | 라벨·정의·상위/하위 클래스·제약(restriction)·domain/range로 연결된 속성 |
+| `search_classes(term, limit)` | 라벨·동의어(모든 언어)·IRI로 클래스 검색. 결과에 언어별 라벨(`labels`) 포함 |
+| `describe_class(iri_or_curie)` | 라벨·정의(언어별 포함)·상위/하위 클래스·제약(restriction)·domain/range로 연결된 속성 |
 | `search_properties(term, limit, kind?)` | object/datatype property 검색 (domain, range 포함) |
 | `add_individual(iri, class_iri, label?, properties?)` | 클래스가 DB에 있는지 확인한 뒤 인스턴스 생성 |
 | `add_relation(subject, property, object)` | 속성(object property)과 양쪽 개체가 DB에 있는지 확인한 뒤 관계 생성 |
@@ -189,8 +190,18 @@ rdflib-neo4j의 `SHORTEN` 전략을 쓴다. 술어와 `rdf:type` 대상 IRI는 `
 | 모든 IRI 주어/목적어 | `(:Resource {uri: "..."})` |
 | `ex:x rdf:type owl:Class` | 라벨 `owl__Class` |
 | `ex:x rdfs:label "pump"` | 속성 `rdfs__label` |
+| `ex:x rdfs:label "펌프"@ko` | 속성 `` `rdfs__label@ko` `` (아래 "저장 규칙" 참고) |
+| `ex:x skos:altLabel "a", "b"` (다중 값으로 지정된 속성) | 배열 `skos__altLabel: ["a", "b"]` |
 | `ex:x rdfs:subClassOf ex:y` | 관계 `[:rdfs__subClassOf]` |
-| blank node (restriction, unionOf 등) | `uri`가 blank node id인 `:Resource` |
+| blank node (restriction, unionOf 등) | `uri`가 내용 기반 해시(`:` 없음)인 `:Resource` |
+
+### 저장 규칙
+
+rdflib-neo4j로 쓰기 직전에 그래프를 한 번 정리한다 ([`storage.py`](src/iof_gdb/storage.py)).
+
+- **언어 태그**: 언어가 붙은 값은 언어별 속성에도 들어간다. `rdfs:label "펌프"@ko` → `` n.`rdfs__label@ko` ``. 태그는 주 언어 코드로 맞춘다 (`en-US` → `en`). 기본 속성 `rdfs__label`에는 태그 없는 값, 없으면 프로필 `languages`의 첫 언어(`en`) 값이 들어간다. 그래서 기존 쿼리는 그대로 동작하고, 나중에 한국어 라벨만 추가로 넣어도 영어 기본값을 덮어쓰지 않는다. 한국어만 있는 노드는 MCP 도구가 `@ko` 값으로 대신 보여준다. Cypher에서 `@`가 들어간 이름은 백틱으로 감싼다.
+- **다중 값**: 프로필 `[storage] multivalued`에 있는 속성은 배열로 저장된다 (언어별 속성 포함). 목록에 없는 속성에 같은 주어의 값이 여러 개 있으면, Neo4j에 하나만 남게 되므로 **아무것도 쓰기 전에 멈추고** 목록을 알려준다. 그 속성을 프로필에 추가하면 된다. 이미 단일 값으로 저장된 속성을 나중에 목록에 넣어도, 임포트할 때 기존 값을 배열로 감싼 뒤 추가한다.
+- **blank node**: rdflib 표준 정규화(RGDA1)로 내용에서 결정적인 ID를 만든다. 같은 파일을 다시 넣어도 같은 노드에 MERGE되어 중복이 생기지 않는다. IOF Core + BFO 전체에서 약 16초가 더 걸린다.
 
 W3C prefix(`rdf`, `rdfs`, `owl`, `xsd`, `skos`, `dc`, `dcterms`)는 [`prefixes.py`](src/iof_gdb/prefixes.py)에 고정돼 있고, 도메인 prefix는 프로필에 있다. 아래는 `iof` 프로필 기준이다. Cypher에서 백틱 없이 쓰도록 하이픈을 뺐다 (IOF 파일의 `iof-av:` → 여기선 `iofav:`).
 
@@ -245,6 +256,10 @@ label_properties = ["rdfs:label", "skos:prefLabel"]  # 앞에 있을수록 우�
 synonym_properties = ["skos:altLabel"]               # 검색에만 사용
 definition_properties = ["eq:definition", "skos:definition", "rdfs:comment"]
 
+[storage]
+languages = ["ko", "en"]                             # 첫 언어가 기본 속성에 들어감
+multivalued = ["skos:altLabel", "skos:example"]      # 배열로 저장할 속성
+
 [fetch]
 default_iris = ["https://example.com/onto/equipment"]  # `iof-gdb fetch` 기본 목록
 
@@ -256,11 +271,28 @@ instructions = """
 
 프로필을 바꾸면 MCP 서버를 다시 띄워야 한다 (안내문은 서버 시작 시 정해진다). 잘못된 값(하이픈 들어간 prefix 이름, 등록 안 된 네임스페이스의 IRI, W3C prefix 재정의 등)은 서버나 CLI가 시작할 때 바로 오류로 알려준다.
 
-## 알아둘 점 (1차 버전의 한계)
+## DB 비우고 다시 넣기
 
-- **다중 값**: rdflib-neo4j 기본값(`HANDLE_MULTIVAL_STRATEGY.OVERWRITE`)이라 같은 술어의 리터럴이 여러 개면 마지막 값만 남는다. IOF Core에선 `skos:example`, `iofav:firstOrderLogicAxiom` 등이 일부 클래스에서 여러 개다.
-- **언어 태그**: 리터럴의 언어 태그(`@en`)는 저장되지 않는다.
-- **blank node**: OWL restriction, unionOf 등은 blank node로 저장된다. 같은 파일을 다시 임포트하면 IRI 노드는 MERGE되지만 blank node는 새로 생긴다.
+저장 규칙이 바뀌었거나 처음부터 다시 넣고 싶을 때. **MCP로 넣은 인스턴스 데이터도 모두 지워지니** 필요하면 먼저 TTL로 남겨둔다.
+
+```bash
+uv run iof-gdb reset
+```
+노드·관계 수를 보여주고 확인을 받은 뒤 전부 지운다 (`--yes`면 묻지 않음). 제약조건은 남는다. MCP 도구로는 제공하지 않는다.
+
+```bash
+uv run iof-gdb import data/ontologies/Core.rdf --follow-imports
+```
+
+```bash
+uv run iof-gdb import data/instances/example-pump.ttl
+```
+
+## 알아둘 점
+
+- **오래된 값**: 다시 임포트하면 같은 IRI의 속성은 새 값으로 바뀌지만, 원본에서 지워진 값이나 관계는 DB에서 지워지지 않는다. 원본에서 많이 바뀌었으면 위 절차로 다시 넣는다.
+- **다중 값 판단 범위**: 같은 임포트 안의 값만 본다. 이미 DB에 단일 값이 있는 속성에 다른 임포트로 값을 넣으면 덮어쓴다 (여러 값이 필요한 속성은 프로필 `multivalued`에 넣는다).
+- **배열 값 타입**: Neo4j 배열은 값 타입이 같아야 해서, 한 속성에 문자열과 숫자를 섞어 넣으면 임포트가 실패한다.
 - `rdfs__subClassOf` 계층 정리 같은 후처리 Cypher는 후속 과제다.
 
 ## 개발

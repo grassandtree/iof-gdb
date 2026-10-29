@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from neo4j import Driver, GraphDatabase
-from rdflib_neo4j import HANDLE_VOCAB_URI_STRATEGY, Neo4jStoreConfig
+from rdflib_neo4j import HANDLE_MULTIVAL_STRATEGY, HANDLE_VOCAB_URI_STRATEGY, Neo4jStoreConfig
+from rdflib_neo4j.utils import getNamespacePart
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
@@ -80,16 +82,32 @@ def create_driver(settings: Settings, **config: Any) -> Driver:
     )
 
 
-def create_store_config(settings: Settings, prefixes: dict[str, str]) -> Neo4jStoreConfig:
+def create_store_config(
+    settings: Settings,
+    prefixes: dict[str, str],
+    array_predicates: Iterable[str] = (),
+) -> Neo4jStoreConfig:
     """Store config for rdflib-neo4j.
 
     SHORTEN turns predicate / rdf:type IRIs into ``prefix__localName`` names; every namespace
     used that way must be in ``prefixes`` or the store raises ShortenStrictException.
+    ``array_predicates`` (full IRIs) are stored as arrays. rdflib-neo4j's ARRAY strategy turns
+    *every* property into an array when its list is empty, so it is only enabled with a list.
     """
+    by_ns = {ns: name for name, ns in prefixes.items()}
+    multival: list[tuple[str, str]] = []
+    for iri in sorted(set(array_predicates)):
+        ns = getNamespacePart(iri)
+        if ns in by_ns:
+            multival.append((by_ns[ns], iri[len(ns) :]))
     return Neo4jStoreConfig(
         auth_data=settings.auth_data(),
-        # Fresh dict each time: rdflib-neo4j uses a mutable default for this argument.
+        # Fresh containers each time: rdflib-neo4j uses mutable defaults for these arguments.
         custom_prefixes=dict(prefixes),
         handle_vocab_uri_strategy=HANDLE_VOCAB_URI_STRATEGY.SHORTEN,
+        handle_multival_strategy=(
+            HANDLE_MULTIVAL_STRATEGY.ARRAY if multival else HANDLE_MULTIVAL_STRATEGY.OVERWRITE
+        ),
+        multival_props_names=multival,
         batching=True,
     )

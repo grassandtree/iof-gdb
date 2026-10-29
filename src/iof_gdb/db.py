@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from neo4j import Driver, RoutingControl
@@ -75,3 +75,36 @@ def load_prefix_defs(driver: Driver) -> dict[str, str]:
 
 def save_prefix_defs(driver: Driver, prefixes: Mapping[str, str]) -> None:
     write(driver, f"MERGE (p:{PREFIX_DEF_LABEL}) SET p += $prefixes", prefixes=dict(prefixes))
+
+
+def wrap_scalars_in_lists(driver: Driver, uris: Sequence[str], props: Sequence[str]) -> None:
+    """Turn single values of ``props`` on these nodes into one-element lists.
+
+    rdflib-neo4j appends to arrays with ``list + value``; on a plain string that would
+    concatenate text instead. This matters when a property becomes multivalued after data
+    was already loaded. ``[] + x`` is ``[x]`` for a scalar and ``x`` for a list.
+    """
+    for prop in props:
+        q = "`" + prop.replace("`", "``") + "`"
+        write(
+            driver,
+            f"UNWIND $uris AS u MATCH (n:Resource {{uri: u}}) "
+            f"WHERE n.{q} IS NOT NULL AND NOT ([] + n.{q}) = n.{q} "
+            f"SET n.{q} = [] + n.{q}",
+            uris=list(uris),
+        )
+
+
+def reset(driver: Driver, batch_size: int = 5000) -> int:
+    """Delete every node and relationship (constraints stay). Returns nodes deleted."""
+    total = 0
+    while True:
+        rows = write(
+            driver,
+            "MATCH (n) WITH n LIMIT $batch DETACH DELETE n RETURN count(*) AS deleted",
+            batch=batch_size,
+        )
+        deleted = rows[0]["deleted"] if rows else 0
+        total += deleted
+        if deleted == 0:
+            return total

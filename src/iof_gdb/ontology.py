@@ -34,26 +34,58 @@ def _named(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _matches_term(names: GraphNames) -> str:
-    props = (*names.label_props, *names.synonym_props)
-    checks = [f"toLower(coalesce(n.{names.q(p)}, '')) CONTAINS toLower($term)" for p in props]
-    checks.append("toLower(n.uri) CONTAINS toLower($term)")
-    return "(" + " OR ".join(checks) + ")"
+# Any label / synonym property, plain or @lang, single value or array, containing $term.
+_MATCHES_TERM = (
+    "(any(k IN keys(n) WHERE any(b IN $text_props WHERE k = b OR k STARTS WITH b + '@') "
+    "AND any(v IN [] + n[k] WHERE toLower(toString(v)) CONTAINS toLower($term))) "
+    "OR toLower(n.uri) CONTAINS toLower($term))"
+)
+# Language-specific labels as [property, value] pairs, turned into {lang: label} in Python.
+_LANG_LABELS = (
+    "[k IN keys(n) WHERE any(b IN $label_props WHERE k STARTS WITH b + '@') | [k, n[k]]] "
+    "AS lang_labels"
+)
+
+
+def _first(value: Any) -> Any:
+    return value[0] if isinstance(value, list) and value else value
+
+
+def by_language(props: dict[str, Any], bases: tuple[str, ...] | list[str]) -> dict[str, Any]:
+    """{lang: value} from ``base@lang`` properties; earlier bases win."""
+    out: dict[str, Any] = {}
+    for base in bases:
+        for key, value in props.items():
+            if key.startswith(base + "@"):
+                out.setdefault(key[len(base) + 1 :], value)
+    return out
+
+
+def _lang_labels(row: dict[str, Any], names: GraphNames) -> None:
+    pairs = row.pop("lang_labels", None) or []
+    row["labels"] = {
+        lang: _first(v) for lang, v in by_language(dict(pairs), names.label_props).items()
+    }
 
 
 def search_classes(
     driver: Driver, term: str, limit: int = 20, *, names: GraphNames
 ) -> list[dict[str, Any]]:
     """Classes (profile class_types) whose label / synonym / IRI contains ``term``."""
-    return read(
+    rows = read(
         driver,
-        f"MATCH (n:Resource) WHERE {names.is_class('n')} AND {_NAMED} "
-        f"AND {_matches_term(names)} "
+        f"MATCH (n:Resource) WHERE {names.is_class('n')} AND {_NAMED} AND {_MATCHES_TERM} "
         f"WITH n, n.uri AS iri, {names.label('n')} AS label "
-        f"RETURN iri, label, {names.definition('n')} AS definition {_ORDER} LIMIT $limit",
+        f"RETURN iri, label, {_LANG_LABELS}, {names.definition('n')} AS definition "
+        f"{_ORDER} LIMIT $limit",
         term=term,
         limit=limit,
+        text_props=names.text_props,
+        label_props=list(names.label_props),
     )
+    for row in rows:
+        _lang_labels(row, names)
+    return rows
 
 
 def search_properties(
@@ -68,7 +100,7 @@ def search_properties(
     rows = read(
         driver,
         f"MATCH (n:Resource) WHERE {names.has_label('n', labels)} AND {_NAMED} "
-        f"AND {_matches_term(names)} "
+        f"AND {_MATCHES_TERM} "
         f"WITH n, n.uri AS iri, {names.label('n')} AS label "
         f"OPTIONAL MATCH (n)-[:{q(names.domain)}]->(d) "
         f"OPTIONAL MATCH (n)-[:{q(names.range)}]->(r) "
@@ -79,6 +111,7 @@ def search_properties(
         f"domain_iris, range_iris {_ORDER} LIMIT $limit",
         term=term,
         limit=limit,
+        text_props=names.text_props,
     )
     for row in rows:
         for key in ("domain", "range"):
@@ -121,8 +154,10 @@ def describe_class(driver: Driver, iri: str, *, names: GraphNames) -> dict[str, 
         "iri": node["iri"],
         "types": node["labels"],
         "is_class": any(label in node["labels"] for label in names.class_labels),
-        "label": next((props[p] for p in names.label_props if p in props), None),
-        "definition": next((props[p] for p in names.definition_props if p in props), None),
+        "label": _first(_pick(props, names.with_languages(names.label_props))),
+        "labels": {k: _first(v) for k, v in by_language(props, names.label_props).items()},
+        "definition": _first(_pick(props, names.with_languages(names.definition_props))),
+        "definitions": by_language(props, names.definition_props),
         "annotations": props,
         "superclasses": related(f"(n)-[:{sub}]->(x)"),
         "subclasses": related(f"(x)-[:{sub}]->(n)"),
@@ -131,6 +166,10 @@ def describe_class(driver: Driver, iri: str, *, names: GraphNames) -> dict[str, 
         "properties_with_range": properties_on(driver, names.range, supers, names=names),
         "restrictions": class_restrictions(driver, iri, names=names),
     }
+
+
+def _pick(props: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    return next((props[k] for k in keys if k in props), None)
 
 
 def class_restrictions(driver: Driver, iri: str, *, names: GraphNames) -> list[dict[str, Any]]:
