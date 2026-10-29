@@ -114,3 +114,45 @@ def test_storage_policy_on_neo4j(neo4j_settings, neo4j_driver, test_ns):
     assert hit["label"] == "pump" and hit["labels"] == {"en": "pump", "ko": "펌프"}
     hits = ontology.search_classes(neo4j_driver, "fluid mover", names=names)
     assert any(h["iri"] == test_ns + "C" for h in hits)
+
+
+def test_derive_subclass_hierarchy(neo4j_settings, neo4j_driver, test_ns):
+    """C ≡ (A ⊔ U) ⊓ B ⊓ (p some R), C ⊑ Top: SUBCLASS_OF to Top (explicit) and B (inferred)."""
+    ttl = f"""
+    @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+    <{test_ns}C> a owl:Class ;
+        rdfs:subClassOf <{test_ns}Top> ;
+        owl:equivalentClass [ a owl:Class ; owl:intersectionOf (
+            [ a owl:Class ; owl:unionOf ( <{test_ns}A> <{test_ns}U> ) ]
+            <{test_ns}B>
+            [ a owl:Restriction ; owl:onProperty <{test_ns}p> ;
+              owl:someValuesFrom <{test_ns}R> ] ) ] .
+    """
+    rdf_import.import_text(ttl, settings=neo4j_settings)  # runs derive
+
+    rows = db.read(
+        neo4j_driver,
+        "MATCH (:Resource {uri: $c})-[r:SUBCLASS_OF]->(s) RETURN s.uri AS s, r.inferred AS inf",
+        c=test_ns + "C",
+    )
+    assert {(r["s"].removeprefix(test_ns), r["inf"]) for r in rows} == {
+        ("Top", False),
+        ("B", True),
+    }
+    [blank] = db.read(
+        neo4j_driver,
+        "MATCH (:Resource {uri: $c})-[:owl__equivalentClass]->(x) RETURN x:BlankNode AS labelled",
+        c=test_ns + "C",
+    )
+    assert blank["labelled"] is True
+
+    names = names_for(neo4j_settings.profile)
+    from iof_gdb import derive
+
+    first = derive.derive(neo4j_driver, names)
+    again = derive.derive(neo4j_driver, names)
+    assert first["subclass_of_explicit"] == again["subclass_of_explicit"]
+    assert first["subclass_of_inferred"] == again["subclass_of_inferred"]
+    d = ontology.describe_class(neo4j_driver, test_ns + "C", names=names)
+    assert [x["iri"] for x in d["inferred_superclasses"]] == [test_ns + "B"]
