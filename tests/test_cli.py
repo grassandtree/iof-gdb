@@ -85,3 +85,36 @@ def test_profile_command(monkeypatch):
     assert "iofav__naturalLanguageDefinition" in data["definition_properties"]
     result = runner.invoke(cli.app, ["profile", "nope"])
     assert result.exit_code == 1 and "Unknown profile" in result.output
+
+
+class _FakeDriver:
+    def close(self):
+        pass
+
+
+def _fake_reset_env(monkeypatch, nodes):
+    from iof_gdb import db
+    from iof_gdb.config import Settings
+
+    calls = []
+    monkeypatch.setattr(cli, "load_settings", lambda: Settings("neo4j://x", "u", "p"))
+    monkeypatch.setattr(cli, "create_driver", lambda s: _FakeDriver())
+    monkeypatch.setattr(db, "stats", lambda d: {"nodes": nodes, "relationships": 0})
+    monkeypatch.setattr(db, "reset", lambda d: calls.append("reset") or nodes)
+    return calls
+
+
+def test_reset_asks_before_deleting(monkeypatch):
+    calls = _fake_reset_env(monkeypatch, 10)
+    result = runner.invoke(cli.app, ["reset"], input="n\n")
+    assert result.exit_code == 1 and calls == []
+    result = runner.invoke(cli.app, ["reset"], input="y\n")
+    assert result.exit_code == 0 and calls == ["reset"]
+    out = result.stdout  # the test runner echoes the typed answer before the JSON
+    assert json.loads(out[out.index("{") :])["deleted_nodes"] == 10
+
+
+def test_reset_yes_skips_prompt(monkeypatch):
+    calls = _fake_reset_env(monkeypatch, 3)
+    result = runner.invoke(cli.app, ["reset", "--yes"])
+    assert result.exit_code == 0 and calls == ["reset"]

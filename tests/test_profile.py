@@ -31,6 +31,8 @@ def test_builtin_profiles_load():
     assert iof.prefixes["bfo"] == "http://purl.obolibrary.org/obo/"
     assert iof.definition_properties[0].endswith("/annotation/naturalLanguageDefinition")
     assert iof.fetch_iris and "IOF Core" in iof.description
+    assert iof.languages == ("en", "ko")
+    assert any(i.endswith("/annotation/firstOrderLogicAxiom") for i in iof.multivalued)
     generic = load_profile("generic")
     assert generic.prefixes == {} and generic.fetch_iris == ()
 

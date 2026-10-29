@@ -23,6 +23,28 @@ label_properties = ["rdfs:label", "skos:prefLabel"]
 synonym_properties = ["skos:altLabel", "iofav:synonym"]
 definition_properties = ["iofav:naturalLanguageDefinition", "skos:definition", "rdfs:comment"]
 
+[storage]
+# Language-tagged literals are also stored per language: rdfs:label "펌프"@ko -> `rdfs__label@ko`
+# (tags reduced to their primary subtag: en-US -> en). The plain property (rdfs__label) keeps
+# untagged values, else values in languages[0].
+languages = ["en", "ko"]
+# Predicates whose literal values are kept as arrays (others keep one value). An import that
+# has several values for an unlisted predicate on the same subject stops before writing.
+multivalued = [
+    "iofav:firstOrderLogicAxiom",
+    "iofav:semiFormalNaturalLanguageAxiom",
+    "iofav:synonym",
+    "iofav:explanatoryNote",
+    "skos:altLabel",
+    "skos:example",
+    "skos:note",
+    "skos:scopeNote",
+    "skos:changeNote",
+    "dc:contributor",
+    "dcterms:contributor",
+    "dcterms:creator",
+]
+
 [fetch]
 # what `iof-gdb fetch` downloads when no IRI is given (owl:imports are followed)
 default_iris = ["https://spec.industrialontologies.org/ontology/core/Core/"]

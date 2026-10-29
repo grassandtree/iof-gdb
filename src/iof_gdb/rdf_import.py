@@ -20,10 +20,10 @@ from pathlib import Path
 from rdflib import OWL, RDF, Graph, URIRef
 from rdflib_neo4j import Neo4jStore
 
-from . import db
+from . import db, storage
 from .config import ONTOLOGY_DIR, Settings, create_driver, create_store_config, load_settings
-from .prefixes import find_unregistered, generate_prefixes
-from .profile import prefix_map
+from .prefixes import find_unregistered, generate_prefixes, shorten
+from .profile import prefix_map, profile_for
 
 FORMAT_BY_SUFFIX = {
     ".ttl": "turtle",
@@ -323,9 +323,14 @@ def resolve_prefixes(
     return {**known, **new}, new
 
 
-def write_graph(graph: Graph, settings: Settings, prefixes: dict[str, str]) -> int:
+def write_graph(
+    graph: Graph,
+    settings: Settings,
+    prefixes: dict[str, str],
+    array_predicates: Iterable[str] = (),
+) -> int:
     """Stream ``graph`` into Neo4j with rdflib-neo4j. Returns the number of triples sent."""
-    config = create_store_config(settings, prefixes)
+    config = create_store_config(settings, prefixes, array_predicates)
     count = 0
     # rdflib-neo4j prints progress to stdout; keep stdout clean (MCP stdio uses it).
     with contextlib.redirect_stdout(sys.stderr):
@@ -347,13 +352,24 @@ def write_graph(graph: Graph, settings: Settings, prefixes: dict[str, str]) -> i
 def import_graph(
     graph: Graph, settings: Settings | None = None, auto_prefix: bool = False
 ) -> tuple[int, dict[str, str]]:
-    """Check namespaces, write ``graph`` to Neo4j. Returns (triples, new prefixes)."""
+    """Apply the storage policy, check namespaces, write ``graph`` to Neo4j.
+
+    Returns (triples written, new prefixes). Nothing is written when the namespace or
+    multi-value checks fail.
+    """
     settings = settings or load_settings()
+    profile = profile_for(settings)
+    prepared = storage.prepare(graph, profile.languages, profile.multivalued)
     driver = create_driver(settings)
     try:
         known = prefix_map(settings, extra=db.load_prefix_defs(driver))
-        prefixes, new = resolve_prefixes(graph, known, auto_prefix)
-        count = write_graph(graph, settings, prefixes)
+        prefixes, new = resolve_prefixes(prepared.graph, known, auto_prefix)
+        array_props = sorted(
+            filter(None, (shorten(p, prefixes) for p in prepared.array_predicates))
+        )
+        subjects = sorted({str(s) for s in prepared.graph.subjects(unique=True)})
+        db.wrap_scalars_in_lists(driver, subjects, array_props)
+        count = write_graph(prepared.graph, settings, prefixes, prepared.array_predicates)
         db.save_prefix_defs(driver, prefixes)
     finally:
         driver.close()

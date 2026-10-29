@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 import os
+import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from .config import DEFAULT_PROFILE, Settings, load_env
 from .prefixes import W3C_PREFIXES, build_prefixes, expand, is_valid_prefix_name, shorten
 
 BUILTIN_DIR = "profiles"
+_LANG = re.compile(r"^[a-z]{2,8}$")
 
 
 class ProfileError(ValueError):
@@ -41,6 +43,8 @@ class Profile:
     label_properties: tuple[str, ...]
     synonym_properties: tuple[str, ...]
     definition_properties: tuple[str, ...]
+    languages: tuple[str, ...]  # primary subtags, preferred first
+    multivalued: tuple[str, ...]  # full predicate IRIs stored as arrays
     fetch_iris: tuple[str, ...]
     instructions: str
     source: str  # file it was loaded from
@@ -78,24 +82,33 @@ def parse_profile(data: Mapping[str, Any], source: str = "<memory>") -> Profile:
             raise ProfileError(f"{source}: prefix {name!r} is reserved for {W3C_PREFIXES[name]}")
     all_prefixes = build_prefixes(domain=prefixes)
     vocab = data.get("vocabulary") or {}
+    storage = data.get("storage") or {}
 
-    def iris(key: str, required: bool = True) -> tuple[str, ...]:
-        values = vocab.get(key, [])
+    def iris(key: str, required: bool = True, section: str = "vocabulary") -> tuple[str, ...]:
+        values = (vocab if section == "vocabulary" else storage).get(key, [])
         if required and not values:
-            raise ProfileError(f"{source}: [vocabulary] {key} must list at least one IRI")
+            raise ProfileError(f"{source}: [{section}] {key} must list at least one IRI")
         out = []
         for v in values:
             try:
                 iri = expand(str(v), all_prefixes)
             except ValueError as e:
-                raise ProfileError(f"{source}: [vocabulary] {key}: {e}") from None
+                raise ProfileError(f"{source}: [{section}] {key}: {e}") from None
             if shorten(iri, all_prefixes) is None:
                 raise ProfileError(
-                    f"{source}: [vocabulary] {key}: {iri} has no prefix; add its namespace "
+                    f"{source}: [{section}] {key}: {iri} has no prefix; add its namespace "
                     "to [prefixes]"
                 )
             out.append(iri)
         return tuple(out)
+
+    languages = tuple(str(lang).lower() for lang in storage.get("languages", []))
+    for lang in languages:
+        if not _LANG.match(lang):
+            raise ProfileError(
+                f"{source}: [storage] languages: {lang!r} must be a primary language subtag "
+                "such as en or ko"
+            )
 
     return Profile(
         name=str(data.get("name") or Path(source).stem),
@@ -105,6 +118,8 @@ def parse_profile(data: Mapping[str, Any], source: str = "<memory>") -> Profile:
         label_properties=iris("label_properties"),
         synonym_properties=iris("synonym_properties", required=False),
         definition_properties=iris("definition_properties", required=False),
+        languages=languages,
+        multivalued=iris("multivalued", required=False, section="storage"),
         fetch_iris=tuple(str(i) for i in (data.get("fetch") or {}).get("default_iris", [])),
         instructions=str((data.get("mcp") or {}).get("instructions") or "").strip(),
         source=source,
@@ -145,6 +160,7 @@ class GraphNames:
     """Stored names (``prefix__local``) for the standard terms and the profile's vocabulary."""
 
     class_labels: tuple[str, ...]
+    languages: tuple[str, ...]
     label_props: tuple[str, ...]
     synonym_props: tuple[str, ...]
     definition_props: tuple[str, ...]
@@ -176,6 +192,7 @@ class GraphNames:
 
         return cls(
             class_labels=tuple(s(i) for i in profile.class_types),
+            languages=profile.languages,
             label_props=tuple(s(i) for i in profile.label_properties),
             synonym_props=tuple(s(i) for i in profile.synonym_properties),
             definition_props=tuple(s(i) for i in profile.definition_properties),
@@ -233,11 +250,26 @@ class GraphNames:
             return "null"
         return "coalesce(" + ", ".join(f"{var}.{_q(p)}" for p in props) + ")"
 
+    def with_languages(self, props: tuple[str, ...]) -> tuple[str, ...]:
+        """Plain properties first, then their ``@lang`` variants in profile language order."""
+        return (*props, *(f"{p}@{lang}" for lang in self.languages for p in props))
+
+    def first_value(self, var: str, props: tuple[str, ...]) -> str:
+        """First non-null of ``props`` (and their language variants); arrays -> first item."""
+        if not props:
+            return "null"
+        return f"head([] + {self.coalesce(var, self.with_languages(props))})"
+
     def label(self, var: str) -> str:
-        return self.coalesce(var, self.label_props)
+        return self.first_value(var, self.label_props)
 
     def definition(self, var: str) -> str:
-        return self.coalesce(var, self.definition_props)
+        return self.first_value(var, self.definition_props)
+
+    @property
+    def text_props(self) -> list[str]:
+        """Label and synonym properties searched by term (with any ``@lang`` variant)."""
+        return [*self.label_props, *self.synonym_props]
 
     def rel_types(self, *names: str) -> str:
         return "|".join(_q(n) for n in names)

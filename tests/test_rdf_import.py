@@ -203,3 +203,19 @@ def test_write_graph_groups_by_subject_and_keeps_stdout_clean(monkeypatch, capsy
     assert "store says hello" in out.err
     assert store.config.auth_data["pwd"] == "p"
     assert sys.stdout is not None
+
+
+def test_import_graph_stops_before_connecting_on_multivalue_conflict(monkeypatch):
+    def no_db(*a, **k):
+        raise AssertionError("must not connect")
+
+    monkeypatch.setattr(ri, "create_driver", no_db)
+    g = Graph()
+    s = URIRef("https://example.org/x")
+    g.add((s, RDFS.label, Literal("a")))
+    g.add((s, RDFS.label, Literal("b")))
+    settings = Settings(uri="neo4j://localhost", username="u", password="p")
+    from iof_gdb.storage import MultiValueError
+
+    with pytest.raises(MultiValueError):
+        ri.import_graph(g, settings)
