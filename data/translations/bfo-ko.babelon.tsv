@@ -1,0 +1,70 @@
+source	source_version	source_language	translation_language	subject_id	predicate_id	source_value	translation_value	translator	translation_date	translation_confidence	translation_precision	translation_type
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000001	rdfs:label	entity	존재자		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000002	rdfs:label	continuant	지속체		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000003	rdfs:label	occurrent	발생체		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000004	rdfs:label	independent continuant	독립 지속체		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000006	rdfs:label	spatial region	공간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000008	rdfs:label	temporal region	시간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000009	rdfs:label	two-dimensional spatial region	2차원 공간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000011	rdfs:label	spatiotemporal region	시공간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000015	rdfs:label	process	과정		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000016	rdfs:label	disposition	성향		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000017	rdfs:label	realizable entity	실현 가능 존재자		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000018	rdfs:label	zero-dimensional spatial region	0차원 공간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000019	rdfs:label	quality	성질		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000020	rdfs:label	specifically dependent continuant	특정 의존 지속체		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000023	rdfs:label	role	역할		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000024	rdfs:label	fiat object part	지정 물체 부분		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000026	rdfs:label	one-dimensional spatial region	1차원 공간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000027	rdfs:label	object aggregate	물체 집합체		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000028	rdfs:label	three-dimensional spatial region	3차원 공간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000029	rdfs:label	site	장소		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000030	rdfs:label	object	물체		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000031	rdfs:label	generically dependent continuant	일반 의존 지속체		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000034	rdfs:label	function	기능		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000035	rdfs:label	process boundary	과정 경계		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000038	rdfs:label	one-dimensional temporal region	1차원 시간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000040	rdfs:label	material entity	물질적 존재자		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000140	rdfs:label	continuant fiat boundary	지속체 지정 경계		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000141	rdfs:label	immaterial entity	비물질적 존재자		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000142	rdfs:label	fiat line	지정 선		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000145	rdfs:label	relational quality	관계적 성질		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000146	rdfs:label	fiat surface	지정 면		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000147	rdfs:label	fiat point	지정 점		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000148	rdfs:label	zero-dimensional temporal region	0차원 시간 영역		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000182	rdfs:label	history	이력		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000202	rdfs:label	temporal interval	시간 구간		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000203	rdfs:label	temporal instant	시점		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000057	rdfs:label	has participant	참여자를 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000110	rdfs:label	has continuant part at all times	항상 지속체 부분을 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000056	rdfs:label	participates in	참여함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000108	rdfs:label	exists at	존재함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000196	rdfs:label	bearer of	담지함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000054	rdfs:label	has realization	실현을 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000117	rdfs:label	has occurrent part	발생체 부분을 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000115	rdfs:label	has member part	구성원 부분을 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000197	rdfs:label	inheres in	내재함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000199	rdfs:label	occupies temporal region	시간 영역을 점유함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000084	rdfs:label	generically depends on	일반적으로 의존함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000177	rdfs:label	continuant part of at all times	항상 지속체 부분임		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000167	rdfs:label	has participant at all times	항상 참여자를 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000059	rdfs:label	concretizes	구체화함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000062	rdfs:label	preceded by	선행됨		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000063	rdfs:label	precedes	선행함		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000082	rdfs:label	located in at all times	항상 위치함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000132	rdfs:label	occurrent part of	발생체 부분임		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000170	rdfs:label	location of at all times	항상 위치임		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000174	rdfs:label	has proper continuant part at some time	어떤 시점에 진부분 지속체를 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000178	rdfs:label	has continuant part	지속체 부분을 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000195	rdfs:label	specifically depends on	특정하게 의존함		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000055	rdfs:label	realizes	실현함		2026-10-29	0.9	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000058	rdfs:label	is concretized by	구체화됨		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000101	rdfs:label	is carrier of	운반함		2026-10-29	0.4	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000111	rdfs:label	has proper continuant part at all times	항상 진부분 지속체를 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000118	rdfs:label	has proper occurrent part	진부분 발생체를 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000137	rdfs:label	proper continuant part of at all times	항상 진부분 지속체임		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000138	rdfs:label	proper occurrent part of	진부분 발생체임		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000172	rdfs:label	has member part at all times	항상 구성원 부분을 가짐		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000175	rdfs:label	proper continuant part of at some time	어떤 시점에 진부분 지속체임		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000221	rdfs:label	first instant of	첫 시점임		2026-10-29	0.6	exact	MachineTranslated
+http://purl.obolibrary.org/obo/bfo.owl	http://purl.obolibrary.org/obo/bfo/2020/bfo.owl	en	ko	bfo:BFO_0000223	rdfs:label	last instant of	마지막 시점임		2026-10-29	0.6	exact	MachineTranslated

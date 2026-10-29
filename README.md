@@ -73,7 +73,7 @@ uv run iof-gdb stats
 | 명령 | 설명 |
 |---|---|
 | `iof-gdb init` | 연결 확인, 제약조건 생성 |
-| `iof-gdb import <path\|url> [--format ttl] [--follow-imports] [--auto-prefix]` | RDF 임포트. 형식은 확장자 → Content-Type → 내용 순으로 추정 (`.ttl`, `.owl`/`.rdf`(RDF/XML), `.nt`, `.n3`, `.jsonld`) |
+| `iof-gdb import <path\|url> [--format ttl] [--follow-imports] [--auto-prefix]` | RDF 임포트. 형식은 확장자 → Content-Type → 내용 순으로 추정 (`.ttl`, `.owl`/`.rdf`(RDF/XML), `.nt`, `.n3`, `.jsonld`, 번역표 `.tsv`) |
 | `iof-gdb stats` | 노드/관계 수, 라벨·관계 타입별 개수 |
 | `iof-gdb reset [--yes]` | DB의 모든 노드·관계 삭제 (확인 후, 제약조건은 유지) |
 | `iof-gdb fetch [IRI ...] [--dest DIR] [--no-follow-imports]` | 온톨로지 로컬 사본 받기 (기본: 프로필의 `[fetch]` 목록). `fetch-iof`는 같은 명령의 옛 이름 |
@@ -270,6 +270,30 @@ instructions = """
 ```
 
 프로필을 바꾸면 MCP 서버를 다시 띄워야 한다 (안내문은 서버 시작 시 정해진다). 잘못된 값(하이픈 들어간 prefix 이름, 등록 안 된 네임스페이스의 IRI, W3C prefix 재정의 등)은 서버나 CLI가 시작할 때 바로 오류로 알려준다.
+
+## 번역 (한국어 라벨)
+
+번역은 다운로드 사본에 넣지 않고 `data/translations/`의 [Babelon](https://github.com/monarch-initiative/babelon) TSV로 관리한다. Babelon은 OBO 커뮤니티의 온톨로지 번역 표 형식으로, 한 행이 번역 하나다. 엑셀이나 구글 시트로 열어 고친 뒤 **탭 구분, UTF-8**로 저장하면 된다.
+
+| 열 | 뜻 |
+|---|---|
+| `subject_id` | 번역 대상 (CURIE, 예: `bfo:BFO_0000040`) |
+| `predicate_id` | 번역할 속성 (예: `rdfs:label`) |
+| `source_value` | 원문 (현재 영어 라벨과 같아야 함, 테스트가 확인) |
+| `translation_language` / `translation_value` | 번역 언어와 번역문 (비우면 건너뜀) |
+| `translation_confidence` | 초안 단계에선 검토 우선순위 (0.4 = 논쟁 소지, 0.6 = 확인 필요, 0.9 = 명확) |
+| `translation_type` | `MachineTranslated` = AI 초안, 검토가 끝나면 `HumanCurated` |
+| `translator` / `translation_date` | 검토자(ORCID나 이름)와 날짜 |
+
+```bash
+uv run iof-gdb import data/translations/bfo-ko.babelon.tsv
+```
+
+각 행은 `rdfs:label "물질적 존재자"@ko`가 되어 `` `rdfs__label@ko` ``에 저장된다. 영어 기본 라벨(`rdfs__label`)은 그대로다. 검토가 끝난 행만 넣으려면 파이썬에서 `parse_babelon(..., curated_only=True)`를 쓴다.
+
+| 파일 | 내용 | 상태 |
+|---|---|---|
+| [`bfo-ko.babelon.tsv`](data/translations/bfo-ko.babelon.tsv) | BFO 2020 클래스 36개 + IOF Core가 쓰는 BFO 관계 33개 | AI 초안, 검토 중 |
 
 ## DB 비우고 다시 넣기
 

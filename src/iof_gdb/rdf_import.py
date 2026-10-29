@@ -8,6 +8,7 @@ prefix map -> stream the triples into ``Graph(store=Neo4jStore(config))`` -> clo
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 import time
 import urllib.parse
@@ -21,9 +22,17 @@ from rdflib import OWL, RDF, Graph, URIRef
 from rdflib_neo4j import Neo4jStore
 
 from . import db, storage
-from .config import ONTOLOGY_DIR, Settings, create_driver, create_store_config, load_settings
-from .prefixes import find_unregistered, generate_prefixes, shorten
-from .profile import prefix_map, profile_for
+from .babelon import parse_babelon
+from .config import (
+    DEFAULT_INSTANCE_NS,
+    ONTOLOGY_DIR,
+    Settings,
+    create_driver,
+    create_store_config,
+    load_settings,
+)
+from .prefixes import build_prefixes, find_unregistered, generate_prefixes, shorten
+from .profile import active_profile_name, load_profile, prefix_map, profile_for
 
 FORMAT_BY_SUFFIX = {
     ".ttl": "turtle",
@@ -35,6 +44,7 @@ FORMAT_BY_SUFFIX = {
     ".n3": "n3",
     ".jsonld": "json-ld",
     ".json": "json-ld",
+    ".tsv": "babelon",  # translation table, see babelon.py
 }
 FORMAT_ALIASES = {
     "ttl": "turtle",
@@ -154,9 +164,19 @@ def parse_document(doc: Document) -> Graph:
     base = doc.base or (
         doc.location if is_url(doc.location) else Path(doc.location).resolve().as_uri()
     )
+    if doc.format == "babelon":
+        return parse_babelon(doc.data, _active_prefixes(), source=doc.location)
     g = Graph()
     g.parse(data=doc.data, format=doc.format, publicID=base)
     return g
+
+
+def _active_prefixes() -> dict[str, str]:
+    """Prefixes for CURIEs in non-RDF inputs (Babelon): W3C + active profile + inst:."""
+    profile = load_profile(active_profile_name())
+    return build_prefixes(
+        os.getenv("IOF_GDB_INSTANCE_NS") or DEFAULT_INSTANCE_NS, domain=profile.prefixes
+    )
 
 
 def ontology_iris(graph: Graph) -> list[str]:
