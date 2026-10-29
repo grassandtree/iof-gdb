@@ -6,6 +6,7 @@ General Cypher reads/writes and schema inspection are left to the official
 
 from __future__ import annotations
 
+import argparse
 import functools
 import json
 import logging
@@ -21,8 +22,9 @@ from neo4j import Driver
 from neo4j.exceptions import AuthError, ClientError, ServiceUnavailable
 from rdflib.exceptions import ParserError
 
-from . import db, knowledge, ontology, rdf_import
+from . import db, http_app, knowledge, ontology, rdf_import
 from .config import DEFAULT_INSTANCE_NS, ConfigError, Settings, create_driver, load_settings
+from .http_app import TOKEN_ENV
 from .prefixes import build_prefixes, expand
 
 INSTRUCTIONS = """\
@@ -204,11 +206,50 @@ def prefixes_resource() -> str:
     return json.dumps(prefixes, indent=2)
 
 
-def main() -> None:
-    # stdout carries the MCP protocol; all logging goes to stderr.
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="iof-gdb-mcp",
+        description="iof-gdb MCP server. stdio for Claude Code; streamable-http for Open WebUI "
+        f"and other HTTP clients (optional bearer token via ${TOKEN_ENV}).",
+    )
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    parser.add_argument("--host", default="127.0.0.1", help="HTTP bind address")
+    parser.add_argument("--port", type=int, default=8000, help="HTTP port")
+    parser.add_argument("--path", default="/mcp", help="HTTP endpoint path")
+    parser.add_argument(
+        "--allowed-host",
+        action="append",
+        default=[],
+        metavar="HOST[:PORT]",
+        help="extra Host header to accept besides localhost (repeatable), e.g. "
+        "host.docker.internal; '*' disables the check",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    # stdout carries the MCP protocol in stdio mode; all logging goes to stderr.
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     try:
-        mcp.run("stdio")
+        if args.transport == "stdio":
+            mcp.run("stdio")
+        else:
+            token = os.getenv(TOKEN_ENV) or None
+            if not token and args.host not in ("127.0.0.1", "localhost", "::1"):
+                logger.warning(
+                    "Serving on %s without %s: anyone who can reach it can write to the database.",
+                    args.host,
+                    TOKEN_ENV,
+                )
+            http_app.serve(
+                mcp,
+                host=args.host,
+                port=args.port,
+                path=args.path,
+                allowed_hosts=args.allowed_host,
+                token=token,
+            )
     finally:
         driver = _state.pop("driver", None)
         if driver is not None:

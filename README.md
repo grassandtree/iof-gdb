@@ -120,6 +120,61 @@ npx @modelcontextprotocol/inspector uv run iof-gdb-mcp
 /plugin install neo4j-skills@neo4j-skills-marketplace
 ```
 
+## 5. Open WebUI에서 MCP 쓰기 (Streamable HTTP)
+
+Open WebUI(v0.6.31 이상)는 MCP를 **Streamable HTTP로만** 직접 붙인다 (stdio 미지원, [문서](https://docs.openwebui.com/features/mcp)). 그래서 두 서버를 HTTP 모드로 따로 띄운다. Claude Code용 stdio 설정(`.mcp.json`)은 그대로 둔다.
+
+### 서버 띄우기
+
+`iof-gdb`: 토큰은 환경변수로만 받는다 (명령줄 인자로 넘기면 `ps`에 보인다).
+
+```bash
+export IOF_GDB_MCP_TOKEN="$(openssl rand -hex 24)"
+```
+
+```bash
+uv run iof-gdb-mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `--transport` | `stdio` | `streamable-http`로 HTTP 모드 |
+| `--host` / `--port` / `--path` | `127.0.0.1` / `8000` / `/mcp` | 바인드 주소, 포트, 엔드포인트 |
+| `--allowed-host` | 없음 | localhost 외에 받을 Host 헤더 (여러 번 지정 가능). `*`는 검사 끄기 |
+| `IOF_GDB_MCP_TOKEN` (환경변수) | 없음 | 설정하면 `Authorization: Bearer <토큰>`이 없는 요청은 401 |
+
+`neo4j-cypher`: 같은 래퍼로 띄우고 인자만 HTTP로 바꾼다. 공식 서버에는 토큰 인증이 없으니 localhost에만 바인딩하고, 읽기만 시킬 거면 `--read-only`를 붙인다. 엔드포인트는 `/mcp/`다.
+
+```bash
+uv run iof-gdb-cypher mcp-neo4j-cypher@0.6.0 --transport http --server-host 127.0.0.1 --server-port 8001 --read-only
+```
+
+### Open WebUI에 등록
+
+Admin Settings → External Tools → **+** 에서 Type을 **MCP (Streamable HTTP)**로 하고 서버마다 하나씩 추가한다.
+
+| 서버 | URL | 인증 |
+|---|---|---|
+| `iof-gdb` | `http://localhost:8000/mcp` | Bearer, 값은 `IOF_GDB_MCP_TOKEN` |
+| `neo4j-cypher` | `http://localhost:8001/mcp/` | 없음 |
+
+**Open WebUI가 Docker 안에서 돌 때**: 컨테이너 안의 `localhost`는 컨테이너 자신이다.
+- URL은 `http://host.docker.internal:8000/mcp`처럼 바꾼다.
+- 서버는 그 Host 헤더를 허용해야 한다. `iof-gdb`는 `--allowed-host host.docker.internal`, `neo4j-cypher`는 `--allowed-hosts host.docker.internal`(쉼표 구분)을 붙인다.
+- Linux Docker는 컨테이너를 `--add-host=host.docker.internal:host-gateway`로 띄워야 하고, 이때 `host.docker.internal`은 docker0 브리지(보통 `172.17.0.1`)를 가리킨다. 그래서 서버를 `127.0.0.1`이 아니라 `--host 172.17.0.1`(cypher는 `--server-host 172.17.0.1`)로 띄운다. `0.0.0.0`은 LAN 전체에 열리니 토큰 없이 쓰지 않는다.
+
+### 모델 설정
+
+- 모델 설정에서 Function Calling을 **Native**로 둔다.
+- MCP 서버가 주는 사용 안내문이 모델에 전달되지 않을 수 있다. 시스템 프롬프트에 다음을 넣으면 정확도가 오른다.
+
+  ```
+  Neo4j에는 IOF Core·BFO 온톨로지가 rdflib-neo4j(n10s) 형식으로 들어 있다. 모든 노드는 :Resource {uri},
+  어휘는 prefix__localName (라벨 owl__Class, 속성 rdfs__label, 관계 rdfs__subClassOf).
+  IRI는 CURIE로 써도 된다: bfo:BFO_0000040, iofconstr:PieceOfEquipment, inst:P-101.
+  지식 입력 전에는 search_classes / search_properties로 클래스와 속성을 먼저 찾는다.
+  ```
+
 ## 그래프 구조
 
 rdflib-neo4j의 `SHORTEN` 전략을 쓴다. 술어와 `rdf:type` 대상 IRI는 `prefix__localName`으로 바뀐다.
