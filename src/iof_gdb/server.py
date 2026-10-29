@@ -6,6 +6,7 @@ General Cypher reads/writes and schema inspection are left to the official
 
 from __future__ import annotations
 
+import argparse
 import functools
 import json
 import logging
@@ -21,23 +22,53 @@ from neo4j import Driver
 from neo4j.exceptions import AuthError, ClientError, ServiceUnavailable
 from rdflib.exceptions import ParserError
 
-from . import db, knowledge, ontology, rdf_import
-from .config import DEFAULT_INSTANCE_NS, ConfigError, Settings, create_driver, load_settings
+from . import db, http_app, knowledge, ontology, rdf_import
+from .config import (
+    DEFAULT_INSTANCE_NS,
+    ConfigError,
+    Settings,
+    create_driver,
+    load_settings,
+)
+from .http_app import TOKEN_ENV
 from .prefixes import build_prefixes, expand
+from .profile import (
+    GraphNames,
+    Profile,
+    ProfileError,
+    active_profile_name,
+    load_profile,
+    names_for,
+    prefix_map,
+)
 
-INSTRUCTIONS = """\
-RDF/OWL tools for a Neo4j graph holding IOF Core, BFO and instance data (rdflib-neo4j,
-n10s-style). IRIs can be given in full or as CURIEs (bfo:BFO_0000040,
-iofconstr:PieceOfEquipment, inst:P-101); read the iof://prefixes resource for the prefix list.
-In Cypher, vocabulary is stored as prefix__localName: label owl__Class, property rdfs__label,
-relationship rdfs__subClassOf; every node is :Resource with a unique `uri`.
+GENERIC_INSTRUCTIONS = """\
+RDF/OWL tools for a Neo4j graph loaded with rdflib-neo4j (n10s-style). Every node is
+:Resource with a unique `uri`; vocabulary is stored as prefix__localName (class label
+{class_labels}, label property {label_prop}, relationship {sub_class_of}). IRIs can be given
+in full or as CURIEs; see the iof://prefixes and iof://profile resources.
 To add knowledge: search_classes / search_properties first, then add_individual and
 add_relation (they refuse unknown classes and properties), or import_rdf_text for Turtle.
 Use the neo4j-cypher server for free-form Cypher.
 """
 
+
+def build_instructions(profile: Profile, names: GraphNames) -> str:
+    text = GENERIC_INSTRUCTIONS.format(
+        class_labels=" / ".join(names.class_labels),
+        label_prop=names.label_props[0],
+        sub_class_of=names.sub_class_of,
+    )
+    return text + ("\n" + profile.instructions + "\n" if profile.instructions else "")
+
+
+# The profile shapes the server instructions, so it is read at start-up (.env included).
+PROFILE = load_profile(active_profile_name())
+
 logger = logging.getLogger("iof_gdb.server")
-mcp = MCPServer("iof-gdb", instructions=INSTRUCTIONS)
+mcp = MCPServer(
+    "iof-gdb", instructions=build_instructions(PROFILE, GraphNames.from_profile(PROFILE))
+)
 
 _state: dict[str, Any] = {}
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -57,7 +88,11 @@ def _driver() -> Driver:
 
 
 def _prefixes() -> dict[str, str]:
-    return build_prefixes(_settings().instance_ns, db.load_prefix_defs(_driver()))
+    return prefix_map(_settings(), db.load_prefix_defs(_driver()))
+
+
+def _names() -> GraphNames:
+    return names_for(_settings().profile)
 
 
 def _iri(value: str) -> str:
@@ -73,7 +108,14 @@ def tool_errors[F: Callable[..., Any]](fn: F) -> F:
             return fn(*args, **kwargs)
         except ToolError:
             raise
-        except (ConfigError, ValueError, FileNotFoundError, ParserError, SyntaxError) as e:
+        except (
+            ConfigError,
+            ProfileError,
+            ValueError,
+            FileNotFoundError,
+            ParserError,
+            SyntaxError,
+        ) as e:
             raise ToolError(str(e)) from e
         except AuthError as e:
             raise ToolError(f"Neo4j authentication failed: {e.message}") from e
@@ -124,8 +166,8 @@ def import_rdf_text(
 @mcp.tool(annotations=READ_ONLY)
 @tool_errors
 def search_classes(term: str, limit: int = 20) -> list[dict[str, Any]]:
-    """Find OWL classes whose label or IRI contains `term` (case-insensitive)."""
-    return ontology.search_classes(_driver(), term, limit)
+    """Find classes whose label, synonym or IRI contains `term` (case-insensitive)."""
+    return ontology.search_classes(_driver(), term, limit, names=_names())
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -134,7 +176,7 @@ def describe_class(iri_or_curie: str) -> dict[str, Any]:
     """Label, definition, annotations, super/sub classes, restrictions and the properties
     whose domain or range is the class."""
     iri = _iri(iri_or_curie)
-    result = ontology.describe_class(_driver(), iri)
+    result = ontology.describe_class(_driver(), iri, names=_names())
     if result is None:
         raise ToolError(f"{iri} is not in the database. Try search_classes.")
     return result
@@ -147,7 +189,7 @@ def search_properties(
 ) -> list[dict[str, Any]]:
     """Find object / datatype properties whose label or IRI contains `term`, with their
     domain and range."""
-    return ontology.search_properties(_driver(), term, limit, kind)
+    return ontology.search_properties(_driver(), term, limit, kind, names=_names())
 
 
 @mcp.tool(annotations=WRITES)
@@ -161,7 +203,7 @@ def add_individual(
     """Create an individual (owl:NamedIndividual) of a class that exists in the database.
 
     iri: IRI or CURIE for the new individual, e.g. inst:P-101.
-    class_iri: e.g. iofconstr:PieceOfEquipment (must already be an owl:Class in the DB).
+    class_iri: IRI or CURIE of a class that is already in the DB (see search_classes).
     properties: {property IRI/CURIE: value or [values]}. Object property values are IRIs of
     existing resources; data/annotation values are literals ({"value": "x", "lang": "en"} or
     {"value": "5", "datatype": "http://www.w3.org/2001/XMLSchema#integer"} also work).
@@ -173,7 +215,7 @@ def add_individual(
 @tool_errors
 def add_relation(subject: str, property: str, object: str) -> dict[str, Any]:
     """Link two existing resources with an object property that exists in the database,
-    e.g. (inst:P-101, iofconstr:hasRole, inst:P-101-role)."""
+    e.g. (inst:P-101, <property CURIE>, inst:P-101-role)."""
     return knowledge.add_relation(subject, property, object, settings=_settings())
 
 
@@ -193,22 +235,83 @@ def graph_stats() -> dict[str, Any]:
 def prefixes_resource() -> str:
     try:
         prefixes = _prefixes()
-    except Exception as e:  # noqa: BLE001 - fall back to the built-in list without a DB
-        logger.warning("Using built-in prefixes only: %s", e)
+    except Exception as e:  # noqa: BLE001 - fall back to the profile's list without a DB
+        logger.warning("Using profile prefixes only: %s", e)
         settings = _state.get("settings")
         prefixes = build_prefixes(
             settings.instance_ns
             if settings
-            else os.getenv("IOF_GDB_INSTANCE_NS", DEFAULT_INSTANCE_NS)
+            else os.getenv("IOF_GDB_INSTANCE_NS", DEFAULT_INSTANCE_NS),
+            domain=PROFILE.prefixes,
         )
     return json.dumps(prefixes, indent=2)
 
 
-def main() -> None:
-    # stdout carries the MCP protocol; all logging goes to stderr.
+@mcp.resource(
+    "iof://profile",
+    name="profile",
+    description="Active profile: what counts as a class, label and definition, as stored names.",
+    mime_type="application/json",
+)
+def profile_resource() -> str:
+    names = GraphNames.from_profile(PROFILE)
+    return json.dumps(
+        {
+            "name": PROFILE.name,
+            "description": PROFILE.description,
+            "class_labels": names.class_labels,
+            "label_properties": names.label_props,
+            "synonym_properties": names.synonym_props,
+            "definition_properties": names.definition_props,
+        },
+        indent=2,
+    )
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="iof-gdb-mcp",
+        description="iof-gdb MCP server. stdio for Claude Code; streamable-http for Open WebUI "
+        f"and other HTTP clients (optional bearer token via ${TOKEN_ENV}).",
+    )
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    parser.add_argument("--host", default="127.0.0.1", help="HTTP bind address")
+    parser.add_argument("--port", type=int, default=8000, help="HTTP port")
+    parser.add_argument("--path", default="/mcp", help="HTTP endpoint path")
+    parser.add_argument(
+        "--allowed-host",
+        action="append",
+        default=[],
+        metavar="HOST[:PORT]",
+        help="extra Host header to accept besides localhost (repeatable), e.g. "
+        "host.docker.internal; '*' disables the check",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    # stdout carries the MCP protocol in stdio mode; all logging goes to stderr.
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     try:
-        mcp.run("stdio")
+        if args.transport == "stdio":
+            mcp.run("stdio")
+        else:
+            token = os.getenv(TOKEN_ENV) or None
+            if not token and args.host not in ("127.0.0.1", "localhost", "::1"):
+                logger.warning(
+                    "Serving on %s without %s: anyone who can reach it can write to the database.",
+                    args.host,
+                    TOKEN_ENV,
+                )
+            http_app.serve(
+                mcp,
+                host=args.host,
+                port=args.port,
+                path=args.path,
+                allowed_hosts=args.allowed_host,
+                token=token,
+            )
     finally:
         driver = _state.pop("driver", None)
         if driver is not None:

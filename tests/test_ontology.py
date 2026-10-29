@@ -1,6 +1,9 @@
-from fakes import FakeDriver
-
 from iof_gdb import ontology
+from iof_gdb.profile import names_for
+
+from .fakes import FakeDriver
+
+N = names_for("iof")
 
 CLS = "https://spec.industrialontologies.org/ontology/construct/PieceOfEquipment"
 
@@ -9,7 +12,7 @@ def test_search_classes_passes_term_and_limit():
     driver = FakeDriver(
         lambda q, p: [{"iri": CLS, "label": "piece of equipment", "definition": "d"}]
     )
-    rows = ontology.search_classes(driver, "Equipment", 5)
+    rows = ontology.search_classes(driver, "Equipment", 5, names=N)
     assert rows[0]["iri"] == CLS
     query, params = driver.queries[0]
     assert "owl__Class" in query and params == {"term": "Equipment", "limit": 5}
@@ -28,7 +31,7 @@ def test_search_properties_marks_class_expressions():
             }
         ]
     )
-    [row] = ontology.search_properties(driver, "role", kind="object")
+    [row] = ontology.search_properties(driver, "role", kind="object", names=N)
     assert row["domain"] == ["(class expression)", "http://purl.obolibrary.org/obo/BFO_0000040"]
     assert row["range"] == ["http://purl.obolibrary.org/obo/BFO_0000023"]
     assert "owl__DatatypeProperty" not in driver.queries[0][0]
@@ -38,11 +41,11 @@ def test_search_properties_rejects_bad_kind():
     import pytest
 
     with pytest.raises(ValueError):
-        ontology.search_properties(FakeDriver(lambda q, p: []), "x", kind="annotation")
+        ontology.search_properties(FakeDriver(lambda q, p: []), "x", kind="annotation", names=N)
 
 
 def test_describe_class_missing():
-    assert ontology.describe_class(FakeDriver(lambda q, p: []), CLS) is None
+    assert ontology.describe_class(FakeDriver(lambda q, p: []), CLS, names=N) is None
 
 
 def test_describe_class_shapes_result():
@@ -84,13 +87,13 @@ def test_describe_class_shapes_result():
             ]
         if "min(length(path)) AS distance" in query:
             return [{"iri": CLS, "distance": 0}, {"iri": "bfo:ME", "distance": 1}]
-        if "rdfs__domain]->(d)" in query:
+        if "`rdfs__domain`]->(d)" in query:
             assert params["classes"] == [CLS, "bfo:ME"]
             return [
                 {"iri": "x:p1", "label": "p1", "kind": "object", "hits": [["bfo:ME"]]},
                 {"iri": "x:p0", "label": "p0", "kind": "object", "hits": [["bfo:ME"], [CLS]]},
             ]
-        if "(n)-[:rdfs__subClassOf]->(x)" in query:
+        if "(n)-[:`rdfs__subClassOf`]->(x)" in query:
             return [
                 {"item": {"iri": "https://x.example/B", "label": "b"}},
                 {"item": {"iri": "Nblank", "label": None}},  # restriction blank node
@@ -99,7 +102,7 @@ def test_describe_class_shapes_result():
         return []
 
     driver = FakeDriver(respond)
-    d = ontology.describe_class(driver, CLS)
+    d = ontology.describe_class(driver, CLS, names=N)
     assert d["is_class"] and d["label"] == "piece of equipment"
     assert d["definition"] == "a material artifact ..."
     assert "uri" not in d["annotations"]
@@ -114,4 +117,4 @@ def test_describe_class_shapes_result():
     ]
     assert d["properties_with_range"] == []
     restriction_query = next(q for q, _ in driver.queries if "owl__Restriction" in q)
-    assert "owl__intersectionOf|owl__unionOf|rdf__first|rdf__rest" in restriction_query
+    assert "`owl__intersectionOf`|`owl__unionOf`|`rdf__first`|`rdf__rest`" in restriction_query

@@ -3,6 +3,7 @@
 import pytest
 
 from iof_gdb import db, ontology, rdf_import
+from iof_gdb.profile import names_for
 
 pytestmark = pytest.mark.integration
 
@@ -53,7 +54,7 @@ def test_describe_class_follows_class_expressions(neo4j_settings, neo4j_driver, 
     <{test_ns}direct> a owl:ObjectProperty ; rdfs:label "direct" ; rdfs:range <{test_ns}C> .
     """
     rdf_import.import_text(ttl, settings=neo4j_settings)
-    d = ontology.describe_class(neo4j_driver, test_ns + "C")
+    d = ontology.describe_class(neo4j_driver, test_ns + "C", names=names_for("iof"))
 
     [r] = d["restrictions"]
     assert r["property"] == test_ns + "hasRole"

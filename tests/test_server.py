@@ -28,7 +28,9 @@ def test_tools_and_resource_in_process(monkeypatch):
     monkeypatch.setattr(server, "_prefixes", lambda: {"bfo": "http://purl.obolibrary.org/obo/"})
     monkeypatch.setattr(server, "_driver", lambda: object())
     monkeypatch.setattr(
-        ontology, "describe_class", lambda driver, iri: {"iri": iri} if "0040" in iri else None
+        ontology,
+        "describe_class",
+        lambda driver, iri, **kw: {"iri": iri} if "0040" in iri else None,
     )
 
     async def go():
@@ -38,15 +40,18 @@ def test_tools_and_resource_in_process(monkeypatch):
             missing = await client.call_tool("describe_class", {"iri_or_curie": "bfo:BFO_9"})
             bad = await client.call_tool("describe_class", {"iri_or_curie": "nope:x"})
             res = await client.read_resource("iof://prefixes")
-            return tools, ok, missing, bad, res
+            prof = await client.read_resource("iof://profile")
+            return tools, ok, missing, bad, res, prof
 
-    tools, ok, missing, bad, res = run(go())
+    tools, ok, missing, bad, res, prof = run(go())
     assert tools == EXPECTED_TOOLS
     assert not ok.is_error
     assert ok.structured_content == {"iri": "http://purl.obolibrary.org/obo/BFO_0000040"}
     assert missing.is_error and "search_classes" in missing.content[0].text
     assert bad.is_error and "Unknown prefix" in bad.content[0].text
     assert json.loads(res.contents[0].text)["bfo"] == "http://purl.obolibrary.org/obo/"
+    profile = json.loads(prof.contents[0].text)
+    assert profile["name"] == "iof" and "owl__Class" in profile["class_labels"]
 
 
 def test_stdio_server_starts_with_clean_stdout(tmp_path):

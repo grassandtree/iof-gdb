@@ -2,8 +2,9 @@ import pytest
 from rdflib import RDF, RDFS, Graph, Literal, URIRef
 
 from iof_gdb import prefixes as px
+from iof_gdb.profile import load_profile
 
-P = px.build_prefixes("https://example.org/inst/")
+P = px.build_prefixes("https://example.org/inst/", domain=load_profile("iof").prefixes)
 CONSTR = "https://spec.industrialontologies.org/ontology/construct/"
 
 

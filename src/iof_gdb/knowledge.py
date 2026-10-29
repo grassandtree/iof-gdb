@@ -17,8 +17,9 @@ from rdflib import OWL, RDF, RDFS, Graph, Literal, URIRef
 
 from . import db
 from .config import Settings, create_driver, load_settings
-from .ontology import PROPERTY_KINDS, resource_kinds
-from .prefixes import build_prefixes, expand
+from .ontology import resource_kinds
+from .prefixes import expand
+from .profile import GraphNames, names_for, prefix_map, profile_for
 from .rdf_import import import_graph
 
 # Annotation properties that may be used without being declared in the database.
@@ -44,7 +45,9 @@ class Vocabulary:
     """What the database knows about the IRIs used in a request."""
 
     prefixes: dict[str, str]
+    names: GraphNames
     kinds: dict[str, list[str] | None] = field(default_factory=dict)  # iri -> labels or None
+    literal_properties: frozenset[str] = frozenset(BUILTIN_LITERAL_PROPERTIES)
 
     def expand(self, value: str) -> str:
         try:
@@ -52,16 +55,19 @@ class Vocabulary:
         except ValueError as e:
             raise KnowledgeError(str(e)) from None
 
+    def property_kind(self, iri: str) -> str | None:
+        """'object' / 'datatype' / 'annotation' for a property, None if unknown."""
+        labels = self.kinds.get(iri)
+        if labels:
+            for label, kind in self.names.property_kinds.items():
+                if label in labels:
+                    return kind
+        if iri in self.literal_properties:
+            return "annotation"
+        return None
 
-def property_kind(iri: str, labels: list[str] | None) -> str | None:
-    """'object' / 'datatype' / 'annotation' for a property, None if unknown."""
-    if labels:
-        for label, kind in PROPERTY_KINDS.items():
-            if label in labels:
-                return kind
-    if iri in BUILTIN_LITERAL_PROPERTIES:
-        return "annotation"
-    return None
+    def is_class(self, iri: str) -> bool:
+        return any(label in (self.kinds.get(iri) or []) for label in self.names.class_labels)
 
 
 def _literal(value: Any) -> Literal:
@@ -91,8 +97,11 @@ def build_individual(
     labels = vocab.kinds.get(cls)
     if labels is None:
         raise KnowledgeError(f"Class {cls} is not in the database. Use search_classes to find it.")
-    if "owl__Class" not in labels:
-        raise KnowledgeError(f"{cls} exists but is not an owl:Class (labels: {labels}).")
+    if not vocab.is_class(cls):
+        raise KnowledgeError(
+            f"{cls} exists but is not a class (labels: {labels}; "
+            f"class labels in this profile: {list(vocab.names.class_labels)})."
+        )
 
     g = Graph()
     g.add((subject, RDF.type, OWL.NamedIndividual))
@@ -101,7 +110,7 @@ def build_individual(
         g.add((subject, RDFS.label, Literal(label)))
     for prop, values in (properties or {}).items():
         p = vocab.expand(prop)
-        kind = property_kind(p, vocab.kinds.get(p))
+        kind = vocab.property_kind(p)
         if kind is None:
             raise KnowledgeError(
                 f"Property {p} is not in the database. Use search_properties to find it."
@@ -123,7 +132,7 @@ def build_individual(
 
 def build_relation(subject: str, prop: str, obj: str, vocab: Vocabulary) -> Graph:
     s, p, o = vocab.expand(subject), vocab.expand(prop), vocab.expand(obj)
-    kind = property_kind(p, vocab.kinds.get(p))
+    kind = vocab.property_kind(p)
     if kind is None:
         raise KnowledgeError(f"Property {p} is not in the database. Use search_properties.")
     if kind != "object":
@@ -144,7 +153,17 @@ def lookup_vocabulary(
     ``strict`` values must expand (unknown prefix -> KnowledgeError); ``loose`` values are
     property values that may just be text, so the ones that do not expand are skipped.
     """
-    vocab = Vocabulary(build_prefixes(settings.instance_ns, db.load_prefix_defs(driver)))
+    profile = profile_for(settings)
+    vocab = Vocabulary(
+        prefixes=prefix_map(settings, db.load_prefix_defs(driver)),
+        names=names_for(settings.profile),
+        literal_properties=frozenset(
+            BUILTIN_LITERAL_PROPERTIES
+            | set(profile.label_properties)
+            | set(profile.synonym_properties)
+            | set(profile.definition_properties)
+        ),
+    )
     iris = [vocab.expand(v) for v in strict]
     for value in loose:
         if " " in value.strip() or ":" not in value:
