@@ -338,6 +338,73 @@ uv run iof-gdb import data/ontologies/Core.rdf --follow-imports
 uv run iof-gdb import data/instances/example-pump.ttl
 ```
 
+## 폐쇄망 (Windows, uv 없이 pip + 사내 PyPI 미러)
+
+uv를 쓸 수 없는 폐쇄망 Windows PC(Python 3.12)에서는 pip와 사내 Nexus의 PyPI 프록시만으로 설치한다.
+
+**venv를 두 개 쓴다.** `mcp-neo4j-cypher 0.6.0`은 fastmcp 2.13.3 / mcp 1.x가 필요하고, 이 프로젝트는 mcp 2.x를 쓴다. 같은 venv에 넣으면 다음처럼 충돌한다.
+
+```
+fastmcp 2.13.3 requires mcp!=1.21.1,<1.23,>=1.19.0, but you have mcp 2.3.0
+```
+
+uv 환경에서는 `uvx`가 이 격리를 대신해 줬는데, 여기서는 venv를 나눠 같은 효과를 낸다.
+
+| 파일 | venv | 내용 |
+|---|---|---|
+| `requirements.txt` | `.venv` | 이 프로젝트의 의존성. `uv.lock`에서 `uv export --frozen --no-dev --no-emit-project`로 만든다 (해시 포함) |
+| `requirements-cypher.txt` | `.venv-cypher` | mcp-neo4j-cypher와 의존성. 실제로 동작하는 `uvx mcp-neo4j-cypher@0.6.0` 환경(Python 3.12, Windows)에서 고정한 버전 |
+
+```powershell
+pip config set global.index-url https://<nexus>/repository/<pypi-proxy>/simple
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\pip install --no-deps -e .        # 빌드 백엔드 uv_build를 미러에서 받는다
+py -3.12 -m venv .venv-cypher
+.venv-cypher\Scripts\pip install -r requirements-cypher.txt
+```
+
+`-e`(editable)로 설치해야 `data/` 폴더 위치를 저장소 기준으로 찾는다. 명령은 `uv run iof-gdb …` 대신 `.venv\Scripts\iof-gdb …`로 실행한다.
+
+`.env`에 cypher 서버 실행 파일을 적는다. 경로는 따옴표 없이 쓴다 (큰따옴표 안에서는 `\n`, `\t` 같은 조합이 이스케이프로 바뀔 수 있다). 이 값이 있으면 `iof-gdb-cypher`는 uvx 대신 이 파일을 직접 띄우고, 패키지 지정(`mcp-neo4j-cypher@…`) 인자는 무시한다. 접속 정보는 지금처럼 환경변수로만 넘긴다.
+
+```
+IOF_GDB_CYPHER_EXE=D:\work\iof-gdb\.venv-cypher\Scripts\mcp-neo4j-cypher.exe
+```
+
+`NEO4J_RESPONSE_TOKEN_LIMIT`은 설정하지 않는다. 설정하면 mcp-neo4j-cypher가 tiktoken으로 인코딩 파일을 인터넷에서 받으려 한다.
+
+`.mcp.json`은 `uv run` 대신 venv의 실행 파일을 절대 경로로 가리킨다. 저장소의 `.mcp.json`은 uv용으로 그대로 두고, 폐쇄망 PC에서만 이렇게 바꿔 쓴다 (JSON이라 역슬래시를 두 번 쓴다).
+
+```json
+{
+  "mcpServers": {
+    "neo4j-cypher": {
+      "command": "D:\\work\\iof-gdb\\.venv\\Scripts\\iof-gdb-cypher.exe",
+      "args": ["--transport", "stdio"]
+    },
+    "iof-gdb": {
+      "command": "D:\\work\\iof-gdb\\.venv\\Scripts\\iof-gdb-mcp.exe"
+    }
+  }
+}
+```
+
+Open WebUI처럼 HTTP로 붙일 때는 5절의 명령을 같은 실행 파일로 바꿔 쓴다 (`.venv\Scripts\iof-gdb-mcp.exe --transport streamable-http …`, `.venv\Scripts\iof-gdb-cypher.exe --transport http …`).
+
+**온톨로지**: 폐쇄망에서는 `fetch`가 동작하지 않는다. 인터넷이 되는 곳에서 `iof-gdb fetch-iof`로 받은 `data/ontologies/`(`catalog-v001.xml` 포함)를 통째로 반입한다. `import --follow-imports`는 카탈로그의 로컬 사본을 먼저 쓰므로 인터넷 없이 적재된다. 번역 TSV(`data/translations/`)는 저장소에 들어 있다.
+
+**Neo4j**: Aura 대신 사내 서버를 쓴다.
+
+```
+NEO4J_URI=neo4j://<host>:7687
+NEO4J_DATABASE=neo4j
+```
+
+Community 에디션은 사용자 DB가 `neo4j` 하나다. `get_neo4j_schema`가 쓰는 APOC Core는 기본으로 켜져 있지 않으니, Neo4j 설치 폴더의 `labs\apoc-*-core.jar`를 `plugins\`로 복사하고 서버를 다시 시작한다.
+
+**의존성 버전을 바꾸면** 두 requirements 파일을 다시 만든다. `requirements.txt`는 `uv lock` 후 위 `uv export` 명령으로, `requirements-cypher.txt`는 바꾼 버전의 mcp-neo4j-cypher가 동작하는 환경에서 다시 고정한다.
+
 ## 알아둘 점
 
 - **오래된 값**: 다시 임포트하면 같은 IRI의 속성은 새 값으로 바뀌지만, 원본에서 지워진 값이나 관계는 DB에서 지워지지 않는다. 원본에서 많이 바뀌었으면 위 절차로 다시 넣는다.

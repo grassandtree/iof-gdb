@@ -6,6 +6,12 @@ same way as iof-gdb (.env, then the environment wins), passes them to the server
 environment (never as command-line arguments, which other users can see in ``ps``), and then
 replaces itself with ``uvx <package spec> <args>``.
 
+Without uv (e.g. an offline Windows PC with only pip and a PyPI mirror), install
+mcp-neo4j-cypher into its own venv from requirements-cypher.txt and point IOF_GDB_CYPHER_EXE at
+its executable; the wrapper then runs that file directly. The venv must be separate because
+mcp-neo4j-cypher needs mcp 1.x (fastmcp 2.13) while this project uses mcp 2.x, which is the
+isolation uvx otherwise provides. In that mode the package spec argument is ignored.
+
 Usage: iof-gdb-cypher [mcp-neo4j-cypher@VERSION] [server args...]
 """
 
@@ -21,6 +27,7 @@ from .config import ConfigError, Settings, load_settings
 
 DEFAULT_SPEC = "mcp-neo4j-cypher@0.6.0"
 DEFAULT_ARGS = ("--transport", "stdio")
+EXE_VAR = "IOF_GDB_CYPHER_EXE"
 
 
 def build_command(
@@ -30,13 +37,19 @@ def build_command(
     args = list(argv) or [DEFAULT_SPEC, *DEFAULT_ARGS]
     if args[0].startswith("-"):  # only server options given: use the default package
         args = [DEFAULT_SPEC, *args]
-    uvx = shutil.which("uvx")
-    if uvx:
+    exe = base_env.get(EXE_VAR)
+    if exe:  # installed mcp-neo4j-cypher (no uv): drop the package spec
+        if not os.path.isfile(exe):
+            raise FileNotFoundError(f"{EXE_VAR} does not point to a file: {exe}")
+        command = [exe, *args[1:]]
+    elif uvx := shutil.which("uvx"):
         command = [uvx, *args]
     else:  # uvx missing but uv present: same thing
         uv = shutil.which("uv")
         if not uv:
-            raise FileNotFoundError("Neither uvx nor uv is on PATH.")
+            raise FileNotFoundError(
+                f"Neither uvx nor uv is on PATH; set {EXE_VAR} to an installed mcp-neo4j-cypher."
+            )
         command = [uv, "tool", "run", *args]
     env = dict(base_env)
     env.update(
