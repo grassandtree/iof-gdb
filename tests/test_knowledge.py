@@ -3,6 +3,9 @@ from rdflib import OWL, RDF, RDFS, Literal, URIRef
 
 from iof_gdb import knowledge as kn
 from iof_gdb.prefixes import build_prefixes
+from iof_gdb.profile import load_profile, names_for
+
+IOF = load_profile("iof")
 
 INST = "https://example.org/inst/"
 C = "https://spec.industrialontologies.org/ontology/construct/"
@@ -16,7 +19,7 @@ KINDS = {
 
 
 def vocab():
-    return kn.Vocabulary(build_prefixes(INST), dict(KINDS))
+    return kn.Vocabulary(build_prefixes(INST, domain=IOF.prefixes), names_for("iof"), dict(KINDS))
 
 
 def test_build_individual():
@@ -45,7 +48,7 @@ def test_build_individual():
     "cls, props, message",
     [
         ("iofconstr:Nope", None, "not in the database"),
-        ("inst:R1", None, "not an owl:Class"),
+        ("inst:R1", None, "not a class"),
         ("iofconstr:PieceOfEquipment", {"iofconstr:unknown": "x"}, "search_properties"),
         ("iofconstr:PieceOfEquipment", {"iofconstr:hasRole": "inst:missing"}, "add it first"),
         ("iofconstr:PieceOfEquipment", {"iofconstr:hasRole": 5}, "object property"),

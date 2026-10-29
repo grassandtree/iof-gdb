@@ -22,7 +22,8 @@ from rdflib_neo4j import Neo4jStore
 
 from . import db
 from .config import ONTOLOGY_DIR, Settings, create_driver, create_store_config, load_settings
-from .prefixes import build_prefixes, find_unregistered, generate_prefixes
+from .prefixes import find_unregistered, generate_prefixes
+from .profile import prefix_map
 
 FORMAT_BY_SUFFIX = {
     ".ttl": "turtle",
@@ -75,7 +76,7 @@ class UnregisteredNamespaceError(ValueError):
         listed = "\n  ".join(self.namespaces)
         super().__init__(
             "These vocabulary namespaces have no prefix, so the SHORTEN strategy cannot store "
-            f"them:\n  {listed}\nAdd them to iof_gdb/prefixes.py or re-run with auto prefixes "
+            f"them:\n  {listed}\nAdd them to the profile's [prefixes] or re-run with auto prefixes "
             "(CLI: --auto-prefix, MCP: auto_prefix=true)."
         )
 
@@ -350,7 +351,7 @@ def import_graph(
     settings = settings or load_settings()
     driver = create_driver(settings)
     try:
-        known = build_prefixes(settings.instance_ns, extra=db.load_prefix_defs(driver))
+        known = prefix_map(settings, extra=db.load_prefix_defs(driver))
         prefixes, new = resolve_prefixes(graph, known, auto_prefix)
         count = write_graph(graph, settings, prefixes)
         db.save_prefix_defs(driver, prefixes)

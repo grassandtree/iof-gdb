@@ -1,0 +1,19 @@
+# Generic profile: only W3C vocabularies (OWL, RDFS, SKOS, Dublin Core).
+# Start here for an ontology other than IOF; copy this file and add your namespaces.
+
+name = "generic"
+description = "Any OWL / RDFS / SKOS vocabulary (W3C prefixes only)"
+
+[prefixes]
+
+[vocabulary]
+class_types = ["owl:Class", "rdfs:Class"]
+label_properties = ["rdfs:label", "skos:prefLabel"]
+synonym_properties = ["skos:altLabel"]
+definition_properties = ["skos:definition", "rdfs:comment", "dcterms:description"]
+
+[fetch]
+default_iris = []
+
+[mcp]
+instructions = ""

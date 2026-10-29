@@ -11,11 +11,10 @@ from neo4j.exceptions import AuthError, ServiceUnavailable
 
 from . import db, rdf_import
 from .config import ONTOLOGY_DIR, ConfigError, create_driver, load_settings
-
-IOF_CORE_IRI = "https://spec.industrialontologies.org/ontology/core/Core/"
+from .profile import GraphNames, ProfileError, active_profile_name, builtin_profiles, load_profile
 
 app = typer.Typer(
-    help="Load IOF Core / BFO ontologies and instance data into Neo4j Aura.",
+    help="Load RDF/OWL ontologies and instance data into Neo4j (profile: IOF_GDB_PROFILE).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -40,7 +39,7 @@ def _run(fn, *args, **kwargs):
         raise _fail(f"Neo4j authentication failed: {e.message}") from None
     except ServiceUnavailable as e:
         raise _fail(f"Neo4j is not reachable: {e}") from None
-    except rdf_import.UnregisteredNamespaceError as e:
+    except (rdf_import.UnregisteredNamespaceError, ProfileError) as e:
         raise _fail(str(e)) from None
 
 
@@ -91,23 +90,64 @@ def stats() -> None:
     _echo_json(_run(_with_driver, db.stats))
 
 
-@app.command("fetch-iof")
-def fetch_iof(
-    iris: Annotated[
-        list[str] | None,
-        typer.Argument(help="Ontology IRIs to download (default: IOF Core)."),
-    ] = None,
-    dest: Annotated[
-        Path, typer.Option("--dest", help="Target directory.", file_okay=False)
-    ] = ONTOLOGY_DIR,
-    follow_imports: Annotated[
-        bool,
-        typer.Option(
-            "--follow-imports/--no-follow-imports", help="Also download owl:imports (BFO, ...)."
-        ),
-    ] = True,
-) -> None:
-    """Download IOF Core and its imports (BFO, IOF annotation vocabulary) for local import."""
-    saved = rdf_import.fetch_ontologies(iris or [IOF_CORE_IRI], dest, follow_imports)
+def _fetch(iris: list[str] | None, dest: Path, follow_imports: bool) -> None:
+    profile = _run(load_profile, active_profile_name())
+    targets = iris or list(profile.fetch_iris)
+    if not targets:
+        raise _fail(f"Profile {profile.name!r} has no [fetch] default_iris; give IRIs to fetch.")
+    saved = rdf_import.fetch_ontologies(targets, dest, follow_imports)
     _echo_json({iri: str(path) for iri, path in saved.items()})
     typer.echo(f"Catalog: {dest / rdf_import.CATALOG_FILE}", err=True)
+
+
+IrisArg = Annotated[
+    list[str] | None,
+    typer.Argument(help="Ontology IRIs to download (default: the profile's [fetch] list)."),
+]
+DestOpt = Annotated[Path, typer.Option("--dest", help="Target directory.", file_okay=False)]
+FollowOpt = Annotated[
+    bool,
+    typer.Option("--follow-imports/--no-follow-imports", help="Also download owl:imports."),
+]
+
+
+@app.command()
+def fetch(
+    iris: IrisArg = None, dest: DestOpt = ONTOLOGY_DIR, follow_imports: FollowOpt = True
+) -> None:
+    """Download ontologies (and their imports) into data/ontologies for local import."""
+    _fetch(iris, dest, follow_imports)
+
+
+@app.command("fetch-iof")
+def fetch_iof(
+    iris: IrisArg = None, dest: DestOpt = ONTOLOGY_DIR, follow_imports: FollowOpt = True
+) -> None:
+    """Same as `fetch` (kept for compatibility; with the iof profile: IOF Core + BFO)."""
+    _fetch(iris, dest, follow_imports)
+
+
+@app.command()
+def profile(
+    name: Annotated[
+        str | None,
+        typer.Argument(help="Built-in profile name or .toml path (default: IOF_GDB_PROFILE)."),
+    ] = None,
+) -> None:
+    """Show (and validate) a profile: prefixes, class/label/definition names, fetch list."""
+    p = _run(load_profile, name or active_profile_name())
+    names = GraphNames.from_profile(p)
+    _echo_json(
+        {
+            "name": p.name,
+            "description": p.description,
+            "source": p.source,
+            "builtin_profiles": builtin_profiles(),
+            "prefixes": p.prefixes,
+            "class_labels": names.class_labels,
+            "label_properties": names.label_props,
+            "synonym_properties": names.synonym_props,
+            "definition_properties": names.definition_props,
+            "fetch_iris": p.fetch_iris,
+        }
+    )

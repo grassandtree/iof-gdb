@@ -40,6 +40,8 @@ cp .env.example .env
 | `NEO4J_USERNAME` / `NEO4J_PASSWORD` | 접속 계정 |
 | `NEO4J_DATABASE` | 기본 `neo4j`. credentials 파일에 다른 값이 있으면 그 값 |
 | `IOF_GDB_INSTANCE_NS` | (선택) 자체 인스턴스 IRI 네임스페이스. CURIE `inst:`로 쓴다. 기본 `https://example.org/iof-gdb/instance/` |
+| `IOF_GDB_PROFILE` | (선택) 온톨로지 프로필. 기본 `iof`. [프로필](#프로필-온톨로지별-설정) 참고 |
+| `IOF_GDB_MCP_TOKEN` | (선택) HTTP 모드 MCP 서버의 Bearer 토큰. [5절](#5-open-webui에서-mcp-쓰기-streamable-http) 참고 |
 
 ## 3. 초기화 → 온톨로지 받기 → 적재
 
@@ -49,9 +51,9 @@ uv run iof-gdb init
 연결을 확인하고 rdflib-neo4j가 요구하는 제약조건 `n10s_unique_uri`(`:Resource(uri)` 유일)를 만든다.
 
 ```bash
-uv run iof-gdb fetch-iof
+uv run iof-gdb fetch
 ```
-IOF Core와 그 `owl:imports`(BFO 2020, IOF AnnotationVocabulary)를 `data/ontologies/`에 받고, IRI → 파일 대응표 `catalog-v001.xml`(Protégé 호환)을 만든다. 받은 파일은 git에 넣지 않는다.
+프로필의 기본 목록(iof 프로필이면 IOF Core)과 그 `owl:imports`(BFO 2020, IOF AnnotationVocabulary)를 `data/ontologies/`에 받고, IRI → 파일 대응표 `catalog-v001.xml`(Protégé 호환)을 만든다. 받은 파일은 git에 넣지 않는다.
 
 ```bash
 uv run iof-gdb import data/ontologies/Core.rdf --follow-imports
@@ -73,7 +75,8 @@ uv run iof-gdb stats
 | `iof-gdb init` | 연결 확인, 제약조건 생성 |
 | `iof-gdb import <path\|url> [--format ttl] [--follow-imports] [--auto-prefix]` | RDF 임포트. 형식은 확장자 → Content-Type → 내용 순으로 추정 (`.ttl`, `.owl`/`.rdf`(RDF/XML), `.nt`, `.n3`, `.jsonld`) |
 | `iof-gdb stats` | 노드/관계 수, 라벨·관계 타입별 개수 |
-| `iof-gdb fetch-iof [IRI ...] [--dest DIR] [--no-follow-imports]` | 온톨로지 로컬 사본 받기 (기본: IOF Core) |
+| `iof-gdb fetch [IRI ...] [--dest DIR] [--no-follow-imports]` | 온톨로지 로컬 사본 받기 (기본: 프로필의 `[fetch]` 목록). `fetch-iof`는 같은 명령의 옛 이름 |
+| `iof-gdb profile [이름\|경로.toml]` | 프로필 확인·검증 (prefix, 클래스·라벨·정의로 쓰는 저장 이름, fetch 목록) |
 
 ## 4. Claude Code에서 MCP 쓰기
 
@@ -126,11 +129,13 @@ Open WebUI(v0.6.31 이상)는 MCP를 **Streamable HTTP로만** 직접 붙인다 
 
 ### 서버 띄우기
 
-`iof-gdb`: 토큰은 환경변수로만 받는다 (명령줄 인자로 넘기면 `ps`에 보인다).
+`iof-gdb`: 토큰은 `.env`나 환경변수로만 받는다 (명령줄 인자로 넘기면 `ps`에 보인다). OS에 상관없이 가장 쉬운 방법은 토큰을 만들어 `.env`에 `IOF_GDB_MCP_TOKEN=<값>` 한 줄로 넣는 것이다.
 
 ```bash
-export IOF_GDB_MCP_TOKEN="$(openssl rand -hex 24)"
+uv run python -c "import secrets; print(secrets.token_hex(24))"
 ```
+
+`.env` 대신 셸에서 정하려면 macOS/Linux는 `export IOF_GDB_MCP_TOKEN="$(openssl rand -hex 24)"`, Windows PowerShell은 `$env:IOF_GDB_MCP_TOKEN = uv run python -c "import secrets; print(secrets.token_hex(24))"`를 쓴다. 이 경우 서버도 같은 창에서 띄워야 한다.
 
 ```bash
 uv run iof-gdb-mcp --transport streamable-http --host 127.0.0.1 --port 8000
@@ -187,7 +192,7 @@ rdflib-neo4j의 `SHORTEN` 전략을 쓴다. 술어와 `rdf:type` 대상 IRI는 `
 | `ex:x rdfs:subClassOf ex:y` | 관계 `[:rdfs__subClassOf]` |
 | blank node (restriction, unionOf 등) | `uri`가 blank node id인 `:Resource` |
 
-prefix는 [`src/iof_gdb/prefixes.py`](src/iof_gdb/prefixes.py)에 있다. Cypher에서 백틱 없이 쓰도록 하이픈을 뺐다 (IOF 파일의 `iof-av:` → 여기선 `iofav:`).
+W3C prefix(`rdf`, `rdfs`, `owl`, `xsd`, `skos`, `dc`, `dcterms`)는 [`prefixes.py`](src/iof_gdb/prefixes.py)에 고정돼 있고, 도메인 prefix는 프로필에 있다. 아래는 `iof` 프로필 기준이다. Cypher에서 백틱 없이 쓰도록 하이픈을 뺐다 (IOF 파일의 `iof-av:` → 여기선 `iofav:`).
 
 | prefix | 네임스페이스 |
 |---|---|
@@ -208,6 +213,48 @@ MATCH (c:owl__Class)-[:rdfs__subClassOf*1..]->(:Resource {uri: "http://purl.obol
 WHERE c.uri STARTS WITH "https://spec.industrialontologies.org/"
 RETURN c.uri, c.rdfs__label ORDER BY c.rdfs__label
 ```
+
+## 프로필 (온톨로지별 설정)
+
+코드는 "rdflib-neo4j로 넣은 OWL/RDFS 그래프"라면 어디든 쓸 수 있는 공용 부분이고, **어떤 온톨로지인가**에 따라 달라지는 값만 프로필 파일(TOML)에 모았다.
+
+| 층 | 어디에 | 예 |
+|---|---|---|
+| 저장 규칙 | 코드 (rdflib-neo4j SHORTEN) | `:Resource {uri}`, `prefix__localName` |
+| 모델링 언어 (표준) | 코드, 이름은 W3C IRI에서 계산 | `rdfs:subClassOf`, `owl:Restriction`, `rdfs:domain` |
+| 도메인 (온톨로지별) | **프로필** | 도메인 prefix, 클래스로 볼 타입, 라벨·동의어·정의 속성, 기본 fetch 목록, MCP 안내문 |
+
+쿼리는 `owl__Class` 같은 이름을 문자열로 박아두지 않고, 표준 IRI(`owl:Class`)와 프로필에서 계산한다. 그래서 prefix 이름이 바뀌어도 쿼리가 따라간다.
+
+- 내장 프로필: [`iof`](src/iof_gdb/profiles/iof.toml) (기본값), [`generic`](src/iof_gdb/profiles/generic.toml) (W3C 어휘만)
+- 선택: `.env`나 환경변수에 `IOF_GDB_PROFILE=generic`, 또는 `IOF_GDB_PROFILE=profiles/my-onto.toml`처럼 파일 경로를 준다.
+- 확인: `uv run iof-gdb profile`로 현재 프로필이 실제로 어떤 저장 이름을 쓰는지 볼 수 있다. MCP에서는 `iof://profile` 리소스로 같은 내용을 보여준다.
+
+새 온톨로지용 프로필은 `generic.toml`을 복사해서 만든다.
+
+```toml
+name = "my-onto"
+description = "사내 설비 온톨로지"
+
+[prefixes]                 # 도메인 네임스페이스 (W3C prefix는 자동 포함)
+eq = "https://example.com/onto/equipment#"
+
+[vocabulary]               # 값은 CURIE 또는 전체 IRI
+class_types = ["owl:Class", "rdfs:Class"]          # search_classes / add_individual이 "클래스"로 볼 rdf:type
+label_properties = ["rdfs:label", "skos:prefLabel"]  # 앞에 있을수록 우선
+synonym_properties = ["skos:altLabel"]               # 검색에만 사용
+definition_properties = ["eq:definition", "skos:definition", "rdfs:comment"]
+
+[fetch]
+default_iris = ["https://example.com/onto/equipment"]  # `iof-gdb fetch` 기본 목록
+
+[mcp]
+instructions = """
+설비는 eq: 네임스페이스를 쓴다. 예: eq:Pump, eq:hasPart.
+"""
+```
+
+프로필을 바꾸면 MCP 서버를 다시 띄워야 한다 (안내문은 서버 시작 시 정해진다). 잘못된 값(하이픈 들어간 prefix 이름, 등록 안 된 네임스페이스의 IRI, W3C prefix 재정의 등)은 서버나 CLI가 시작할 때 바로 오류로 알려준다.
 
 ## 알아둘 점 (1차 버전의 한계)
 

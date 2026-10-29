@@ -1,0 +1,37 @@
+# IOF Core (Release 202603) + BFO 2020 profile.
+# Values may be full IRIs or CURIEs using the W3C prefixes (rdf, rdfs, owl, xsd, skos, dc,
+# dcterms) and the prefixes defined below.
+
+name = "iof"
+description = "IOF Core (Release 202603) + BFO 2020"
+
+# Namespaces verified against IOF Core Release 202603 and BFO 2020 (release-2024-01-29).
+# Prefix names avoid hyphens so stored names work in Cypher without backticks
+# (IOF's own files say iof-av:, iof-constr:, ...).
+[prefixes]
+bfo = "http://purl.obolibrary.org/obo/"   # obo:BFO_0000040 -> bfo__BFO_0000040
+iofconstr = "https://spec.industrialontologies.org/ontology/construct/"
+iofav = "https://spec.industrialontologies.org/ontology/annotation/"
+iofind = "https://spec.industrialontologies.org/ontology/individual/"
+iofcore = "https://spec.industrialontologies.org/ontology/core/Core/"
+
+[vocabulary]
+# rdf:type values that make a resource a "class" for search_classes / add_individual
+class_types = ["owl:Class", "rdfs:Class"]
+# literal properties, in order of preference
+label_properties = ["rdfs:label", "skos:prefLabel"]
+synonym_properties = ["skos:altLabel", "iofav:synonym"]
+definition_properties = ["iofav:naturalLanguageDefinition", "skos:definition", "rdfs:comment"]
+
+[fetch]
+# what `iof-gdb fetch` downloads when no IRI is given (owl:imports are followed)
+default_iris = ["https://spec.industrialontologies.org/ontology/core/Core/"]
+
+[mcp]
+# appended to the generic server instructions
+instructions = """
+The graph holds IOF Core (Release 202603) and BFO 2020. IOF classes and properties use
+iofconstr: (e.g. iofconstr:PieceOfEquipment, iofconstr:hasRole), BFO terms use bfo:
+(bfo:BFO_0000040 = material entity), IOF annotations use iofav:. Own individuals use inst:
+(e.g. inst:P-101).
+"""

@@ -2,7 +2,10 @@ import pytest
 from rdflib_neo4j import HANDLE_VOCAB_URI_STRATEGY
 
 from iof_gdb import config
-from iof_gdb.prefixes import BASE_PREFIXES
+from iof_gdb.prefixes import build_prefixes
+from iof_gdb.profile import load_profile
+
+IOF_PREFIXES = build_prefixes(domain=load_profile("iof").prefixes)
 
 
 @pytest.fixture
@@ -48,10 +51,10 @@ def test_store_config(clean_env, monkeypatch):
     monkeypatch.setenv("NEO4J_PASSWORD", "p")
     monkeypatch.setenv("NEO4J_DATABASE", "db1")
     s = config.load_settings(clean_env)
-    cfg = config.create_store_config(s, BASE_PREFIXES)
+    cfg = config.create_store_config(s, IOF_PREFIXES)
     assert cfg.handle_vocab_uri_strategy is HANDLE_VOCAB_URI_STRATEGY.SHORTEN
     assert cfg.batching is True
     assert cfg.auth_data["database"] == "db1"
-    assert cfg.get_prefixes()["iofav"] == BASE_PREFIXES["iofav"]
+    assert cfg.get_prefixes()["iofav"] == IOF_PREFIXES["iofav"]
     # the config must not share the caller's dict
-    assert cfg.custom_prefixes is not BASE_PREFIXES
+    assert cfg.custom_prefixes is not IOF_PREFIXES

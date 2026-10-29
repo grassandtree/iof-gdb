@@ -2,10 +2,10 @@
 
 With HANDLE_VOCAB_URI_STRATEGY.SHORTEN, rdflib-neo4j turns every predicate IRI and every
 rdf:type object IRI into ``prefix__localName`` (e.g. ``rdfs__label``, ``owl__Class``).
-Its namespace must be registered here, or the import fails with ShortenStrictException.
+Its namespace must have a prefix, or the import fails with ShortenStrictException.
 
-Prefix names avoid hyphens so the resulting labels / property names work in Cypher without
-backticks (IOF's own files use ``iof-av:`` etc.; here they are ``iofav:``).
+The W3C prefixes below are always present. Domain prefixes (IOF, BFO, ...) come from the
+active profile (see profile.py), auto-generated ones from the database.
 """
 
 from __future__ import annotations
@@ -16,9 +16,7 @@ from collections.abc import Iterable, Mapping
 from rdflib import RDF, Graph, URIRef
 from rdflib_neo4j.utils import getLocalPart, getNamespacePart
 
-# Namespaces verified against IOF Core Release 202603 and BFO 2020 (release-2024-01-29).
-BASE_PREFIXES: dict[str, str] = {
-    # W3C / common vocabularies
+W3C_PREFIXES: dict[str, str] = {
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "owl": "http://www.w3.org/2002/07/owl#",
@@ -26,13 +24,6 @@ BASE_PREFIXES: dict[str, str] = {
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "dc": "http://purl.org/dc/elements/1.1/",
     "dcterms": "http://purl.org/dc/terms/",
-    # BFO (and other OBO ontologies): obo:BFO_0000040 -> bfo__BFO_0000040
-    "bfo": "http://purl.obolibrary.org/obo/",
-    # IOF
-    "iofconstr": "https://spec.industrialontologies.org/ontology/construct/",
-    "iofav": "https://spec.industrialontologies.org/ontology/annotation/",
-    "iofind": "https://spec.industrialontologies.org/ontology/individual/",
-    "iofcore": "https://spec.industrialontologies.org/ontology/core/Core/",
 }
 
 INSTANCE_PREFIX = "inst"
@@ -42,15 +33,21 @@ _CURIE = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*):([^/].*)?$")
 
 
 def build_prefixes(
-    instance_ns: str | None = None, extra: Mapping[str, str] | None = None
+    instance_ns: str | None = None,
+    extra: Mapping[str, str] | None = None,
+    domain: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Base prefixes + the instance namespace + extra (e.g. auto-generated) prefixes."""
-    prefixes = dict(BASE_PREFIXES)
+    """W3C + domain (profile) + instance namespace + extra (e.g. stored/auto) prefixes.
+
+    Earlier sources win on name clashes; ``extra`` only adds names that are still free.
+    """
+    prefixes = dict(W3C_PREFIXES)
+    for name, ns in (domain or {}).items():
+        prefixes.setdefault(name, ns)
     if instance_ns:
-        prefixes[INSTANCE_PREFIX] = instance_ns
-    if extra:
-        for name, ns in extra.items():
-            prefixes.setdefault(name, ns)
+        prefixes.setdefault(INSTANCE_PREFIX, instance_ns)
+    for name, ns in (extra or {}).items():
+        prefixes.setdefault(name, ns)
     return prefixes
 
 

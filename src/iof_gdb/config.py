@@ -18,6 +18,7 @@ INSTANCE_DIR = DATA_DIR / "instances"
 
 DEFAULT_DATABASE = "neo4j"
 DEFAULT_INSTANCE_NS = "https://example.org/iof-gdb/instance/"
+DEFAULT_PROFILE = "iof"
 
 
 class ConfigError(RuntimeError):
@@ -31,6 +32,7 @@ class Settings:
     password: str = field(repr=False)
     database: str = DEFAULT_DATABASE
     instance_ns: str = DEFAULT_INSTANCE_NS
+    profile: str = DEFAULT_PROFILE  # built-in profile name or path to a .toml file
 
     def auth_data(self) -> dict[str, str]:
         """Auth dict in the shape rdflib-neo4j expects (keys: uri, database, user, pwd)."""
@@ -42,12 +44,17 @@ class Settings:
         }
 
 
+def load_env(env_file: str | os.PathLike[str] | None = None) -> None:
+    """Read .env (project root by default) into os.environ; existing variables win."""
+    load_dotenv(env_file or PROJECT_ROOT / ".env", override=False)
+
+
 def load_settings(env_file: str | os.PathLike[str] | None = None) -> Settings:
     """Load settings from the environment, after reading a .env file if present.
 
     Values already in the environment win over the .env file.
     """
-    load_dotenv(env_file or PROJECT_ROOT / ".env", override=False)
+    load_env(env_file)
     missing = [k for k in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD") if not os.getenv(k)]
     if missing:
         raise ConfigError(
@@ -59,6 +66,7 @@ def load_settings(env_file: str | os.PathLike[str] | None = None) -> Settings:
         password=os.environ["NEO4J_PASSWORD"],
         database=os.getenv("NEO4J_DATABASE") or DEFAULT_DATABASE,
         instance_ns=os.getenv("IOF_GDB_INSTANCE_NS") or DEFAULT_INSTANCE_NS,
+        profile=os.getenv("IOF_GDB_PROFILE") or DEFAULT_PROFILE,
     )
 
 

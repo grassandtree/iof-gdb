@@ -50,7 +50,7 @@ def test_missing_settings_is_a_clean_error(monkeypatch, tmp_path):
     assert "NEO4J_URI" in result.output
 
 
-def test_fetch_iof_defaults_to_core(monkeypatch, tmp_path):
+def test_fetch_defaults_to_profile_list(monkeypatch, tmp_path):
     seen = {}
 
     def fake_fetch(iris, dest, follow_imports):
@@ -58,6 +58,30 @@ def test_fetch_iof_defaults_to_core(monkeypatch, tmp_path):
         return {iris[0]: dest / "Core.rdf"}
 
     monkeypatch.setattr(rdf_import, "fetch_ontologies", fake_fetch)
-    result = runner.invoke(cli.app, ["fetch-iof", "--dest", str(tmp_path)])
+    monkeypatch.setenv("IOF_GDB_PROFILE", "iof")
+    for cmd in ("fetch", "fetch-iof"):
+        result = runner.invoke(cli.app, [cmd, "--dest", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert seen == {
+            "iris": ["https://spec.industrialontologies.org/ontology/core/Core/"],
+            "dest": tmp_path,
+            "follow": True,
+        }
+
+
+def test_fetch_without_default_list_needs_iris(monkeypatch, tmp_path):
+    monkeypatch.setenv("IOF_GDB_PROFILE", "generic")
+    result = runner.invoke(cli.app, ["fetch", "--dest", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "default_iris" in result.output
+
+
+def test_profile_command(monkeypatch):
+    monkeypatch.setenv("IOF_GDB_PROFILE", "iof")
+    result = runner.invoke(cli.app, ["profile"])
     assert result.exit_code == 0, result.output
-    assert seen == {"iris": [cli.IOF_CORE_IRI], "dest": tmp_path, "follow": True}
+    data = json.loads(result.stdout)
+    assert data["name"] == "iof"
+    assert "iofav__naturalLanguageDefinition" in data["definition_properties"]
+    result = runner.invoke(cli.app, ["profile", "nope"])
+    assert result.exit_code == 1 and "Unknown profile" in result.output
