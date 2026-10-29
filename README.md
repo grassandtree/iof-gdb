@@ -312,7 +312,7 @@ uv run iof-gdb import data/translations/bfo-ko.babelon.tsv
 
 | 파일 | 내용 | 상태 |
 |---|---|---|
-| [`bfo-ko.babelon.tsv`](data/translations/bfo-ko.babelon.tsv) | BFO 2020 클래스 36개 + IOF Core가 쓰는 BFO 관계 33개 | AI 초안 (논쟁 용어는 추천안으로 잠정 채택) |
+| [`bfo-ko.babelon.tsv`](data/translations/bfo-ko.babelon.tsv) | BFO 2020 클래스 37개 + 관계 64개 (전체) | AI 초안 (논쟁 용어는 추천안으로 잠정 채택) |
 | [`iof-core-ko.babelon.tsv`](data/translations/iof-core-ko.babelon.tsv) | IOF Core 202603 클래스 91, 객체 속성 83, 데이터 속성 2, 어노테이션 속성 28, 개체 2 | AI 초안, 검토 중 |
 
 ```bash
