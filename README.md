@@ -405,6 +405,55 @@ Community 에디션은 사용자 DB가 `neo4j` 하나다. `get_neo4j_schema`가 
 
 **의존성 버전을 바꾸면** 두 requirements 파일을 다시 만든다. `requirements.txt`는 `uv lock` 후 위 `uv export` 명령으로, `requirements-cypher.txt`는 바꾼 버전의 mcp-neo4j-cypher가 동작하는 환경에서 다시 고정한다.
 
+### VS Code / Cline에서 쓰기
+
+두 클라이언트 모두 stdio 방식이라 서버를 따로 띄울 필요가 없다. 클라이언트가 필요할 때 실행 파일을 직접 띄우고 끈다. 두 래퍼는 실행 위치와 상관없이 저장소의 `.env`를 읽으므로(editable 설치 기준) 설정 파일에 접속 정보를 적지 않는다.
+
+**VS Code (GitHub Copilot 에이전트 모드)**: 작업 폴더의 `.vscode/mcp.json`에 등록한다. 키 이름이 `servers`이고, `${workspaceFolder}`를 쓸 수 있다. 저장하면 파일 위에 Start 버튼이 생기고, 에이전트 모드의 도구 목록에서 켜고 끈다.
+
+```json
+{
+  "servers": {
+    "iof-gdb": {
+      "type": "stdio",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\iof-gdb-mcp.exe"
+    },
+    "neo4j-cypher": {
+      "type": "stdio",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\iof-gdb-cypher.exe",
+      "args": ["--transport", "stdio"]
+    }
+  }
+}
+```
+
+MCP 서버는 로컬에서 돌지만 Copilot 자체는 GitHub 클라우드에 접속해야 동작한다. 폐쇄망에서 Copilot이 허용되지 않으면 아래 Cline이나 Open WebUI를 쓴다.
+
+**Cline**: 사내 LLM(Ollama, vLLM 같은 OpenAI 호환 엔드포인트)을 연결할 수 있어서 폐쇄망에서도 통째로 쓸 수 있다. Cline 패널 → MCP Servers → Configure로 `cline_mcp_settings.json`을 연다. 이 파일은 작업 폴더별이 아니라 전역이라 `${workspaceFolder}`를 쓸 수 없으니 **절대 경로**로 적는다.
+
+```json
+{
+  "mcpServers": {
+    "iof-gdb": {
+      "command": "D:\\work\\iof-gdb\\.venv\\Scripts\\iof-gdb-mcp.exe",
+      "args": [],
+      "disabled": false,
+      "autoApprove": ["search_classes", "describe_class", "search_properties", "graph_stats"]
+    },
+    "neo4j-cypher": {
+      "command": "D:\\work\\iof-gdb\\.venv\\Scripts\\iof-gdb-cypher.exe",
+      "args": ["--transport", "stdio"],
+      "disabled": false,
+      "autoApprove": ["get_neo4j_schema", "read_neo4j_cypher"]
+    }
+  }
+}
+```
+
+`autoApprove`에는 조회 도구만 넣는다. 쓰기 도구(`import_rdf`, `import_rdf_text`, `add_individual`, `add_relation`, `write_neo4j_cypher`)는 실행할 때마다 확인을 받는다. 로컬 모델은 도구 호출 품질이 모델에 크게 좌우되므로, 도구 호출을 지원하는 모델을 고르고 5절 "모델 설정"의 시스템 프롬프트 문구를 Cline의 Custom Instructions에 넣는다.
+
+**Neo4j Agent Skills**: `.claude/settings.json`에 등록한 [Neo4j Agent Skills](#neo4j-agent-skills)는 Claude Code 전용이다. Copilot과 Cline은 이 설정을 읽지 않고, 폐쇄망에서는 GitHub 마켓플레이스에서 받을 수도 없다.
+
 ## 알아둘 점
 
 - **오래된 값**: 다시 임포트하면 같은 IRI의 속성은 새 값으로 바뀌지만, 원본에서 지워진 값이나 관계는 DB에서 지워지지 않는다. 원본에서 많이 바뀌었으면 위 절차로 다시 넣는다.
